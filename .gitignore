@@ -1,0 +1,34 @@
+# Secrets — NEVER commit
+.env
+*.env
+backend/.env
+
+# Databases / runtime state
+*.db
+*.db.backup-*
+backend/signals.db
+backend/pattern_disable_state.json
+backend/chroma*/
+backend/*.sqlite3
+
+# Large data (transfer to VPS separately, not via git) — RAG PDFs + OCR
+backend/knowledge/*.pdf
+backend/tessdata/
+backend/session_summary_state.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# Logs / temp
+*.log
+*.tmp
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini

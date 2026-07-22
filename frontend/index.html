@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Multi-Agent Trading Dashboard</title>
+<link rel="stylesheet" href="style.css?v=8">
+</head>
+<body>
+  <div class="topbar">
+    <h1>// TRADING ROOM AI</h1>
+    <div class="legend">
+      <div class="tag"><span class="dot technical"></span>Technical</div>
+      <div class="tag"><span class="dot risk"></span>Risk</div>
+      <div class="tag"><span class="dot ceo"></span>CEO</div>
+    </div>
+  </div>
+
+  <div class="summary-bar" id="summary-bar">
+    <div class="metric">
+      <div class="metric-label">Equity</div>
+      <div class="metric-value" id="m-equity">--</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Balance</div>
+      <div class="metric-value" id="m-balance">--</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">Floating P/L</div>
+      <div class="metric-value" id="m-profit">--</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">ไม้เปิดอยู่</div>
+      <div class="metric-value" id="m-positions-count">--</div>
+    </div>
+    <div class="metric">
+      <div class="metric-label">สถานะ</div>
+      <div class="metric-value" id="m-live">--</div>
+    </div>
+  </div>
+
+  <div class="tab-nav">
+    <button class="tab-btn active" data-tab="tab-chat">บทสนทนา</button>
+    <button class="tab-btn" data-tab="tab-positions">ไม้เปิดอยู่</button>
+    <button class="tab-btn" data-tab="tab-risk">ความเสี่ยง</button>
+    <button class="tab-btn" data-tab="tab-results">ผลงาน</button>
+    <button class="tab-btn" data-tab="tab-backtest">แบทเทส</button>
+    <button class="tab-btn" data-tab="tab-analysis">วิเคราะห์ไม้</button>
+    <button class="tab-btn" data-tab="tab-calendar">ปฏิทิน P/L</button>
+  </div>
+
+  <div class="tab-panel active" id="tab-chat">
+    <div class="office" id="office">
+      <canvas id="office-canvas"></canvas>
+      <div id="office-bubbles"></div>
+    </div>
+
+    <div class="layout">
+      <div class="chat-col" style="max-width: 560px;">
+        <h2>บทสนทนา agent (real-time)</h2>
+        <div id="feed" class="feed"></div>
+      </div>
+
+      <div class="results-col">
+        <h2>Live Indicators (อัปเดตล่าสุด)</h2>
+        <div class="winrate-panel" id="indicators-panel" style="text-align:left;">
+          <p class="placeholder">รอ Technical Agent วิเคราะห์รอบแรก...</p>
+        </div>
+
+        <h2>👁 Multi-TF Zone Watch — H1↔M5 · H4↔M15 · เทรน H1/H4/D1</h2>
+        <div class="winrate-panel" id="zones-panel" style="text-align:left; max-height:360px; overflow-y:auto;">
+          <p class="placeholder">รอข้อมูลโซน...</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-positions">
+    <div class="positions-panel" id="positions-panel" style="max-width: 820px;">
+      <h2>ไม้ที่เปิดอยู่จริง</h2>
+      <div id="positions-list" class="positions-list">
+        <p class="placeholder">ไม่มีไม้เปิดอยู่ หรือยังไม่เชื่อมต่อ MT5</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-risk">
+    <div class="risk-panel" style="max-width: 420px;">
+      <label>Risk ต่อไม้ (%) <input id="risk-per-trade" type="number" step="0.1" min="0.1"></label>
+      <label>Total open risk สูงสุด (%) <input id="risk-total-open" type="number" step="0.1" min="0.1"></label>
+      <label>Daily loss limit (%) <input id="risk-daily" type="number" step="0.1" min="0.1"></label>
+      <label>Max drawdown (%) <input id="risk-drawdown" type="number" step="0.1" min="0.1"></label>
+      <button id="risk-save">บันทึก</button>
+      <div class="risk-meter">
+        <div class="meter-row"><span>Total open risk</span><span id="meter-open">0% / 0%</span></div>
+        <div class="meter-bar"><div id="meter-open-bar" class="meter-fill"></div></div>
+        <div class="meter-row"><span>Daily loss</span><span id="meter-daily">0% / 0%</span></div>
+        <div class="meter-bar"><div id="meter-daily-bar" class="meter-fill daily"></div></div>
+      </div>
+
+      <h2 style="margin-top:20px;">Kill Switch / Health</h2>
+      <div class="winrate-panel" id="kill-switch-panel" style="text-align:left;">
+        <p class="placeholder">กำลังโหลด...</p>
+      </div>
+      <button id="kill-switch-toggle" style="margin-top:8px;">เปิด/ปิด Auto-Trade</button>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-results">
+    <div class="results-grid">
+      <div class="results-col">
+        <h2>Trade ล่าสุด</h2>
+        <div id="decision-panel" class="decision-panel">
+          <p class="placeholder">รอ CEO Agent สรุปผล...</p>
+        </div>
+
+        <h2>Win rate (จากที่ระบบบันทึกเอง)</h2>
+        <div class="winrate-panel" id="winrate-panel">
+          <div class="winrate-big" id="winrate-value">--</div>
+          <div class="winrate-detail" id="winrate-detail">ยังไม่มีข้อมูล</div>
+          <div id="direction-stats" style="margin-top:10px; display:flex; gap:16px; flex-wrap:wrap;"></div>
+        </div>
+
+        <h2>ไม้ต่อวัน</h2>
+        <div class="winrate-panel" id="daily-stats-panel">
+          <p class="placeholder">ยังไม่มีข้อมูล</p>
+        </div>
+
+        <h2>Expectancy (R-multiple) — กำไรสุทธิจริงไม่ใช่แค่ win rate</h2>
+        <div class="winrate-panel" id="expectancy-panel" style="text-align:left;">
+          <p class="placeholder">ยังไม่มีข้อมูล</p>
+        </div>
+      </div>
+
+      <div class="results-col">
+        <h2>ประวัติ signal</h2>
+        <div id="history" class="history"></div>
+      </div>
+
+      <div class="results-col">
+        <h2>ความแม่นยำ CEO แต่ละ provider</h2>
+        <div class="winrate-panel" id="provider-accuracy-panel" style="text-align:left;">
+          <p class="placeholder">ยังไม่มีข้อมูล</p>
+        </div>
+
+        <h2>ต้นทุนจริงต่อสินทรัพย์ (slippage/ค่าคอม)</h2>
+        <div class="winrate-panel" id="cost-stats-panel" style="text-align:left;">
+          <p class="placeholder">ยังไม่มีข้อมูล</p>
+        </div>
+
+        <h2>สถานะโมเดล ML</h2>
+        <div class="winrate-panel" id="ml-status-panel" style="text-align:left;">
+          <p class="placeholder">ยังไม่มีข้อมูล</p>
+        </div>
+
+        <h2>สมุดบันทึกการค้นคว้าเอง (Lab Notebook)</h2>
+        <div class="winrate-panel" id="research-log-panel" style="text-align:left; max-height:260px; overflow-y:auto;">
+          <p class="placeholder">ยังไม่มีข้อมูล</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-backtest">
+    <div class="results-grid">
+      <div class="results-col">
+        <h2>รัน Backtest</h2>
+        <div class="risk-panel" style="max-width: 360px;">
+          <label>ช่วงเวลา <input id="backtest-period" type="text" value="90d" placeholder="เช่น 90d, 180d"></label>
+          <label style="display:flex; align-items:center; gap:6px; flex-direction:row;">
+            <input id="backtest-mtf-filter" type="checkbox" style="width:auto;">
+            กรองเฉพาะ mtf_confluence = full/swing_only
+          </label>
+          <label>แหล่งข้อมูล
+            <select id="backtest-source">
+              <option value="yahoo">Yahoo Finance (ไม่ต้องเตรียมอะไร)</option>
+              <option value="mt5">MT5 จริง (ต้องรัน HistoryExporter.mq5 ก่อน)</option>
+            </select>
+          </label>
+          <button id="backtest-run-btn">รัน Backtest ทุกสินทรัพย์</button>
+          <p id="backtest-status" class="placeholder" style="margin-top:8px;">ยังไม่ได้รัน</p>
+        </div>
+
+        <h2>สถานะข้อมูล MT5 History</h2>
+        <div class="winrate-panel" id="mt5-history-status-panel" style="text-align:left;">
+          <p class="placeholder">กำลังโหลด...</p>
+        </div>
+
+        <h2>สรุปผลต่อสินทรัพย์</h2>
+        <div class="winrate-panel" id="backtest-summary-panel" style="text-align:left;">
+          <p class="placeholder">ยังไม่มีข้อมูล — กดรัน Backtest ก่อน</p>
+        </div>
+      </div>
+
+      <div class="results-col">
+        <h2>Win rate ตาม SMC structure event × multi-timeframe confluence</h2>
+        <div class="winrate-panel" id="backtest-structure-panel" style="text-align:left;">
+          <p class="placeholder">ยังไม่มีข้อมูล</p>
+        </div>
+        <p class="placeholder" style="font-size:10px;">⚠ ข้อมูลจาก Yahoo Finance + rule ง่ายๆ ไม่ใช่ LLM จริง — ใช้เทียบ logic เท่านั้น ไม่ใช่ผลเทรดจริง</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-analysis">
+    <div class="results-grid">
+
+      <div class="results-col">
+        <h2>Buy vs Sell — ภาพรวม</h2>
+        <div class="winrate-panel" id="dir-summary-panel">
+          <p class="placeholder">กำลังโหลด...</p>
+        </div>
+
+        <h2>แยกตาม Symbol (Buy vs Sell)</h2>
+        <div class="winrate-panel" id="dir-symbol-panel" style="max-height:320px; overflow-y:auto;">
+          <p class="placeholder">กำลังโหลด...</p>
+        </div>
+
+        <h2>Expectancy (R) แยกตาม Symbol</h2>
+        <div class="winrate-panel" id="sym-expectancy-panel" style="max-height:280px; overflow-y:auto;">
+          <p class="placeholder">กำลังโหลด...</p>
+        </div>
+      </div>
+
+      <div class="results-col">
+        <h2>Win Rate รายชั่วโมง (เวลาไทย)</h2>
+        <div class="winrate-panel" id="hourly-panel" style="max-height:360px; overflow-y:auto;">
+          <p class="placeholder">กำลังโหลด...</p>
+        </div>
+
+        <h2>Win Rate รายวัน (Buy vs Sell)</h2>
+        <div class="winrate-panel" id="dir-daily-panel" style="max-height:280px; overflow-y:auto;">
+          <p class="placeholder">กำลังโหลด...</p>
+        </div>
+      </div>
+
+      <div class="results-col">
+        <h2>Pattern Matrix — RSI × EMA Trend</h2>
+        <div class="winrate-panel" id="rsi-ema-matrix-panel" style="overflow-x:auto;">
+          <p class="placeholder">กำลังโหลด...</p>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-calendar">
+    <div class="cal-wrap">
+      <div class="cal-topbar">
+        <div class="cal-title-group">
+          <h2 id="cal-title">—</h2>
+          <span class="cal-total-badge" id="cal-total">0R</span>
+        </div>
+        <div class="cal-nav">
+          <button id="cal-prev">‹</button>
+          <button id="cal-today">วันนี้</button>
+          <button id="cal-next">›</button>
+        </div>
+      </div>
+      <div class="cal-grid cal-head" id="cal-weekdays"></div>
+      <div class="cal-grid" id="cal-days"></div>
+      <p class="placeholder" style="font-size:10px; margin-top:12px;">
+        ตัวเลขในช่อง = ผลรวม R-multiple ของไม้ที่ปิดวันนั้น · เขียว = กำไร แดง = ขาดทุน · 1R = ระยะ SL · คอลัมน์ WEEKLY = สรุปรายสัปดาห์
+      </p>
+    </div>
+  </div>
+
+  <div class="modal-overlay" id="order-modal">
+    <div class="modal-box">
+      <h2>CEO ส่งคำสั่งเข้า MT5 อัตโนมัติ (DEMO)</h2>
+      <div class="decision-card" id="modal-card"></div>
+      <p class="positions-panel placeholder" style="border:none; box-shadow:none; padding:8px 0 0; margin:0; text-align:center;">
+        ระบบส่งคำสั่งเข้าบัญชี DEMO ให้แล้วอัตโนมัติ — กดปิดเพื่อรับทราบ
+      </p>
+      <div class="actions">
+        <button class="approve" id="modal-approve">รับทราบ</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="login-overlay" id="login-overlay">
+    <div class="login-box">
+      <h2>🔒 Trading Room AI</h2>
+      <p id="login-msg" class="login-msg">ใส่รหัสผ่านเพื่อเข้าใช้งาน</p>
+      <input id="login-input" type="password" placeholder="รหัสผ่าน" autocomplete="current-password">
+      <button id="login-btn">เข้าสู่ระบบ</button>
+    </div>
+  </div>
+
+  <script src="office.js?v=6"></script>
+  <script src="app.js?v=6"></script>
+</body>
+</html>

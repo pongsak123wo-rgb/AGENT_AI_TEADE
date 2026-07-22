@@ -1,0 +1,93 @@
+"""Decision audit — a transparent, code-computed factor sheet for every
+trade, so a decision is never a pure LLM black box.
+
+Instead of trusting the LLM to explain itself (which it can fabricate),
+we build the explanation from the SAME real numbers the pipeline already
+computed: trend consensus, the zone that triggered, RSI/EMA/MACD, SMC
+structure, ML probability, and the risk verdict. Each factor is tagged
+FOR / AGAINST / NEUTRAL relative to the proposed direction, with a short
+human-readable detail. This is 100% deterministic and auditable — you can
+always see exactly which facts supported the trade and which contradicted
+it, next to whatever the LLM said.
+"""
+from __future__ import annotations
+
+
+def _stance_from_dir(direction: str | None, bias: str) -> str:
+    if not direction or direction == "none":
+        return "neutral"
+    want = "bullish" if bias == "buy" else "bearish"
+    if direction in ("buy", "sell"):
+        return "for" if direction == bias else "against"
+    return "for" if direction == want else "against"
+
+
+def build(bias: str, indicators: dict, mtf: dict | None, risk: dict) -> dict:
+    """Returns {factors: [{name, stance, detail}], score, summary}."""
+    factors: list[dict] = []
+
+    def add(name, stance, detail):
+        factors.append({"name": name, "stance": stance, "detail": detail})
+
+    # --- HTF trend consensus ---
+    if mtf and mtf.get("trend"):
+        overall = mtf["trend"]["overall"]
+        per = mtf["trend"].get("per_tf", {})
+        want = "bullish" if bias == "buy" else "bearish"
+        stance = "for" if overall == want else "against" if overall in ("bullish", "bearish") else "neutral"
+        add("เทรน H1/H4/D1", stance, f"รวม={overall} (H1={per.get('H1')}/H4={per.get('H4')}/D1={per.get('D1')})")
+
+    # --- Zone that triggered ---
+    if mtf and mtf.get("pairs"):
+        fired = next((p for p in mtf["pairs"] if p.get("fired")), None)
+        if fired and fired.get("fired_zone"):
+            z = fired["fired_zone"]
+            add("โซนที่แตะ", _stance_from_dir(z.get("dir"), bias),
+                f"{fired['entry_tf']} แตะ {z['kind']} ของ {fired['structure_tf']} ({z['low']}–{z['high']})")
+
+    # --- RSI ---
+    rsi_state = indicators.get("rsi_state")
+    rsi = indicators.get("rsi")
+    if rsi_state:
+        if rsi_state == "oversold":
+            st = "for" if bias == "buy" else "against"
+        elif rsi_state == "overbought":
+            st = "for" if bias == "sell" else "against"
+        else:
+            st = "neutral"
+        add("RSI", st, f"{rsi} ({rsi_state})")
+
+    # --- EMA trend ---
+    ema = indicators.get("ema_trend")
+    if ema and ema != "neutral":
+        st = "for" if (bias == "buy" and ema == "up") or (bias == "sell" and ema == "down") else "against"
+        add("EMA trend", st, ema)
+
+    # --- MACD cross ---
+    macd = indicators.get("macd_cross")
+    if macd and macd != "none":
+        st = "for" if (bias == "buy" and macd == "bullish") or (bias == "sell" and macd == "bearish") else "against"
+        add("MACD cross", st, macd)
+
+    # --- SMC structure ---
+    smc = indicators.get("smc") or {}
+    ev = smc.get("structure_event")
+    if ev and ev != "none":
+        add(f"SMC {ev}", _stance_from_dir(smc.get("structure_direction"), bias),
+            smc.get("structure_detail", "")[:60])
+
+    # --- ML probability ---
+    ind = indicators
+    ml = ind.get("ml_prob_buy") if bias == "buy" else ind.get("ml_prob_sell")
+    if ml is not None:
+        add("ML win prob", "for" if ml >= 50 else "against", f"{ml}%")
+
+    # --- Risk verdict ---
+    add("Risk", "for" if risk.get("approved") else "against", (risk.get("reason") or "")[:60])
+
+    fors = sum(1 for f in factors if f["stance"] == "for")
+    againsts = sum(1 for f in factors if f["stance"] == "against")
+    score = fors - againsts
+    summary = f"สนับสนุน {fors} · ค้าน {againsts} · สุทธิ {'+' if score >= 0 else ''}{score}"
+
+    return {"factors": factors, "for": fors, "against": againsts, "score": score, "summary": summary}

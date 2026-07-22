@@ -1,0 +1,17 @@
+fastapi
+uvicorn[standard]
+chromadb
+anthropic
+ta
+pandas
+pypdf
+python-dotenv
+google-generativeai
+groq
+cerebras_cloud_sdk
+requests
+ddgs
+scikit-learn
+# Windows-only: direct MT5 data/execution on the VPS (auto-falls back to
+# the EA file bridge where it can't import/initialize, e.g. WDAC machines).
+MetaTrader5; platform_system == "Windows"
