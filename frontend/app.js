@@ -673,6 +673,17 @@ function wrColor(pct) {
   return pct >= 50 ? "var(--green)" : "var(--red)";
 }
 
+// All symbols the system trades — so the by-symbol table shows every one,
+// even those with no closed trades yet (0/0), not just the ones that traded.
+let ALL_SYMBOLS = [];
+async function loadSymbols() {
+  try {
+    const res = await fetch(`${API}/symbols`);
+    ALL_SYMBOLS = (await res.json()).symbols || [];
+  } catch (e) { /* keep last */ }
+}
+loadSymbols();
+
 async function loadDirectionStats() {
   const summaryPanel = document.getElementById("dir-summary-panel");
   const symbolPanel  = document.getElementById("dir-symbol-panel");
@@ -702,17 +713,16 @@ async function loadDirectionStats() {
         </div>`;
     }).join("");
 
-    // --- แยกตาม Symbol (BUY vs SELL คู่กัน) ---
-    if (data.by_symbol.length === 0) {
-      symbolPanel.innerHTML = '<p class="placeholder">ยังไม่มีข้อมูล</p>';
-    } else {
+    // --- แยกตาม Symbol (BUY vs SELL คู่กัน) — แสดงทุก symbol ที่ระบบเทรด ---
+    {
       // จัดกลุ่มตาม symbol
       const bySymMap = {};
       data.by_symbol.forEach(r => {
         if (!bySymMap[r.symbol]) bySymMap[r.symbol] = { buy: null, sell: null };
         bySymMap[r.symbol][r.action] = r;
       });
-      const symbols = Object.keys(bySymMap).sort();
+      // รวมทุก symbol ที่ระบบเทรด (แม้ยังไม่มีไม้) + symbol ที่มีไม้แล้ว
+      const symbols = Array.from(new Set([...ALL_SYMBOLS, ...Object.keys(bySymMap)])).sort();
 
       const empty = { win: 0, loss: 0, breakeven: 0, closed: 0, win_rate_pct: null };
       const cell = (r, dir) => {
@@ -743,8 +753,9 @@ async function loadDirectionStats() {
           </thead>
           <tbody>` +
         symbols.map(sym => {
-          const b = bySymMap[sym].buy;
-          const s = bySymMap[sym].sell;
+          const rec = bySymMap[sym] || { buy: null, sell: null };
+          const b = rec.buy;
+          const s = rec.sell;
           const totalBuy  = b ? b.win + b.loss + b.breakeven : 0;
           const totalSell = s ? s.win + s.loss + s.breakeven : 0;
           return `

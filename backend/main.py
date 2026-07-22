@@ -474,6 +474,11 @@ def get_recent_signals():
     return signal_log.recent()
 
 
+@app.get("/symbols")
+def get_symbols():
+    return {"symbols": list(SYMBOLS.keys())}
+
+
 @app.get("/zones")
 def get_zones():
     return latest_zones
