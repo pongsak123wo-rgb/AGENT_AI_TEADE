@@ -115,12 +115,11 @@ def _build_prompt(technical: dict, news: dict, risk: dict, snapshot: dict) -> st
     price = snapshot["price"]
     spread = snapshot.get("spread", 0)
 
-    # Preliminary SL/TP using the same ATR-based formula CEOAgent will use
-    # for the real order, just so the break-even check can run before the
-    # actual decision/order exists yet.
+    # Preliminary SL/TP using the SAME adaptive formula CEOAgent.decide uses
+    # for the real order, so the break-even check reflects the actual stop.
     atr = indicators.get("atr") or price * 0.001
-    sl_dist = atr * 1.5
-    tp_dist = atr * 3.0
+    sl_dist = max(atr * 2.0, spread * 8.0, price * 0.0012)
+    tp_dist = sl_dist * 2.0
     if technical["bias"] == "buy":
         sl, tp = price - sl_dist, price + tp_dist
     else:

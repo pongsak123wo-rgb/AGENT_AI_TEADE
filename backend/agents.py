@@ -254,9 +254,20 @@ class CEOAgent:
             return {"action": "no_trade", "council": council}
 
         price = snapshot["price"]
-        atr = technical.get("indicators", {}).get("atr", price * 0.001)
-        sl_dist = atr * 1.5
-        tp_dist = atr * 3.0
+        indicators = technical.get("indicators", {})
+        atr = indicators.get("atr") or price * 0.001
+        spread = snapshot.get("spread") or price * 0.0001
+
+        # Self-calculating SL/TP — adapts to each instrument instead of a
+        # fixed ATR×1.5 (which, on the M1-based ATR, gave a 3-4 pip stop that
+        # normal spread + noise triggered instantly). The stop must clear:
+        #   • real volatility        → ATR × 2
+        #   • the spread + slippage  → spread × 8 (can't be stopped by the
+        #                              bid/ask gap itself)
+        #   • a sane floor           → 0.12% of price
+        # whichever is largest. TP is a fixed 2:1 reward-to-risk off that.
+        sl_dist = max(atr * 2.0, spread * 8.0, price * 0.0012)
+        tp_dist = sl_dist * 2.0  # 2R target
         sl = price - sl_dist if technical["bias"] == "buy" else price + sl_dist
         tp = price + tp_dist if technical["bias"] == "buy" else price - tp_dist
         return {
