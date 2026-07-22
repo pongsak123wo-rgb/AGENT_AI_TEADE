@@ -372,24 +372,30 @@
   }
 
   // ---------- public API ----------
-  function speak(agent, text) {
+  // walk=false → just show a bubble at the agent's own desk (routine zone
+  // report, no trip to the CEO). walk=true → the agent actually walks over
+  // to the CEO to report (only on a real action: price hit a zone, a
+  // decision, an order). This stops Technical/Risk pacing to the CEO every
+  // single watch cycle.
+  function speak(agent, text, walk = false) {
     const c = chars[agent];
     if (!c) return;
     const short = text.length > 90 ? text.slice(0, 90) + "…" : text;
     c.bubble = short;
-    c.bubbleUntil = performance.now() + 5500;
+    // routine reports fade faster so the desk doesn't stay cluttered
+    c.bubbleUntil = performance.now() + (walk ? 5500 : 2600);
 
-    if (agent === "ceo") {
-      // CEO speaks from their desk; visitors already there just listen
+    if (agent === "ceo" || !walk) {
+      // Stay at the desk — CEO always speaks from their seat, and routine
+      // zone reports don't warrant a walk.
       return;
     }
-    // Technical / Risk walk over to the CEO to report
+    // Real action → Technical / Risk walk over to the CEO to report.
     const m = MEET[agent];
     c.path = pathTo(c, m.x, m.y);
     c.state = "toMeet";
     c.talkUntil = performance.now() + 5000;
-    // CEO turns to face the visitor
-    chars.ceo.face = "down";
+    chars.ceo.face = "down";  // CEO turns to face the visitor
   }
 
   window.OfficeScene = { speak };

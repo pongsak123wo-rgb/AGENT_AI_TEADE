@@ -175,7 +175,7 @@ function addMessage(msg, isHistory = false) {
   const time = new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
   addChatMessage(msg, time);
   if (!isHistory) {
-    showSpeech(msg.agent, msg.text);
+    showSpeech(msg.agent, msg.text, msg.kind);
   }
   if (msg.kind === "decision") {
     renderDecisionCard(msg.data, time, isHistory);
@@ -201,9 +201,13 @@ loadRecentFeed();
 // The office scene handles its own animation loop; app.js just tells it
 // which agent is "speaking" so that character walks over to the CEO and
 // shows a bubble. Only technical/risk/ceo have avatars in the scene.
-function showSpeech(agent, text) {
+function showSpeech(agent, text, kind) {
   if (window.OfficeScene && ["technical", "risk", "ceo"].includes(agent)) {
-    window.OfficeScene.speak(agent, text);
+    // Walk to the CEO only on a real action — a zone was hit (🎯), a
+    // decision/order (📋 / kind=decision), or the CEO speaking. Routine
+    // "👁 เฝ้าโซน" watch reports stay at the desk (walk=false).
+    const isAction = kind === "decision" || agent === "ceo" || /🎯|📋|MT5|ออเดอร์|ticket/.test(text);
+    window.OfficeScene.speak(agent, text, isAction);
   }
 }
 
