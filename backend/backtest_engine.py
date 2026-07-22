@@ -34,8 +34,8 @@ SYMBOL_MAP = {
     "GBPUSD": "GBPUSD=X",
     "USDJPY": "USDJPY=X",
     "XAUUSD": "GC=F",
-    "US30": "^DJI",
-    "NAS100": "^NDX",
+    "EURJPY": "EURJPY=X",
+    "GBPJPY": "GBPJPY=X",
 }
 
 WINDOW = 60  # bars of history fed to compute_snapshot at each step

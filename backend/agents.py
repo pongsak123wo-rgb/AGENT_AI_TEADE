@@ -27,8 +27,8 @@ SYMBOL_CURRENCIES = {
     "GBPUSD": ["GBP", "USD"],
     "USDJPY": ["USD", "JPY"],
     "XAUUSD": ["USD"],
-    "US30": ["USD"],
-    "NAS100": ["USD"],
+    "EURJPY": ["EUR", "JPY"],
+    "GBPJPY": ["GBP", "JPY"],
 }
 
 

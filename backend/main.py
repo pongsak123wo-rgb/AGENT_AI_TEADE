@@ -81,8 +81,8 @@ SYMBOLS = {
     "GBPUSD": 1.2640,
     "USDJPY": 156.30,
     "XAUUSD": 2342.50,
-    "US30": 38950.0,
-    "NAS100": 18700.0,
+    "EURJPY": 169.50,
+    "GBPJPY": 197.60,
 }
 
 data_agent = DataAgent(symbols=SYMBOLS)

@@ -18,9 +18,15 @@ CORRELATION_MAP = {
     ("EURUSD", "GBPUSD"): 0.85,
     ("EURUSD", "USDJPY"): -0.55,
     ("GBPUSD", "USDJPY"): -0.45,
-    ("US30", "NAS100"): 0.85,
     ("XAUUSD", "EURUSD"): 0.35,
     ("XAUUSD", "USDJPY"): -0.40,
+    # JPY crosses move together strongly (both are XXX/JPY) and both track
+    # the USDJPY/JPY leg, so stacking them is effectively one big JPY bet.
+    ("EURJPY", "GBPJPY"): 0.90,
+    ("EURJPY", "USDJPY"): 0.75,
+    ("GBPJPY", "USDJPY"): 0.72,
+    ("EURJPY", "EURUSD"): 0.45,
+    ("GBPJPY", "GBPUSD"): 0.45,
 }
 
 HIGH_CORRELATION_THRESHOLD = 0.7

@@ -24,7 +24,7 @@ import time
 # Symbols to snapshot — mirrors main.SYMBOLS (kept here to avoid a circular
 # import). Override with MT5_SYMBOLS="EURUSD,GBPUSD,..." if the VPS terminal
 # watches a different set.
-DEFAULT_SYMBOLS = ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "US30", "NAS100"]
+DEFAULT_SYMBOLS = ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "EURJPY", "GBPJPY"]
 
 _mt5 = None
 _init_ok = False
@@ -50,6 +50,16 @@ def _load():
         _init_ok = bool(mt5.initialize())
     except Exception:
         _init_ok = False
+
+    # Ensure every configured symbol is visible in Market Watch — a symbol
+    # the terminal isn't subscribed to returns no tick/rates (that was why
+    # US30/NAS100 silently fell back to mock). symbol_select adds them.
+    if _init_ok:
+        for sym in _symbols():
+            try:
+                mt5.symbol_select(sym, True)
+            except Exception:
+                pass
     return _init_ok
 
 
