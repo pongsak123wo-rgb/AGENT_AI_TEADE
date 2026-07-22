@@ -418,6 +418,12 @@ def get_llm_circuit_breaker_status():
     return llm_circuit_breaker.status()
 
 
+@app.get("/cost-guard/status")
+def get_cost_guard_status():
+    import cost_guard
+    return cost_guard.status()
+
+
 @app.get("/backtest/run")
 def run_backtest(symbol: str = "EURUSD", period: str = "60d", interval: str = "1h", source: str = "yahoo"):
     return backtest_engine.run_backtest(symbol, period=period, interval=interval, source=source)
