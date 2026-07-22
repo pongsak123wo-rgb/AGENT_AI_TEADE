@@ -224,8 +224,12 @@ class RiskAgent:
     def __init__(self, risk_manager):
         self.risk_manager = risk_manager
 
-    def evaluate(self, symbol: str, bias: str, spread: float | None = None, atr: float | None = None, mtf_confluence: str | None = None) -> dict:
-        return self.risk_manager.evaluate(symbol, bias, spread=spread, atr=atr, mtf_confluence=mtf_confluence)
+    def evaluate(self, symbol: str, bias: str, spread: float | None = None, atr: float | None = None,
+                 mtf_confluence: str | None = None, ema_trend: str | None = None, rsi_state: str | None = None) -> dict:
+        return self.risk_manager.evaluate(
+            symbol, bias, spread=spread, atr=atr, mtf_confluence=mtf_confluence,
+            ema_trend=ema_trend, rsi_state=rsi_state,
+        )
 
     def report(self, risk: dict) -> AgentMessage:
         return AgentMessage(agent="risk", text=risk["reason"], data=risk)
@@ -242,7 +246,11 @@ class CEOAgent:
 
     def decide(self, technical: dict, news: dict, risk: dict, snapshot: dict) -> dict:
         council = ceo_council.decide(technical, news, risk, snapshot)
-        if not council["approved"] or not news["safe"]:
+        # news.get("safe", True): the News agent was removed, so `news` is now
+        # an empty dict — default to "safe to trade". Using news["safe"] here
+        # raised KeyError on every council approval, silently killing every
+        # trade before it could be placed.
+        if not council["approved"] or not news.get("safe", True):
             return {"action": "no_trade", "council": council}
 
         price = snapshot["price"]

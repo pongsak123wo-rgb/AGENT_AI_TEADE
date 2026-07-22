@@ -17,9 +17,14 @@ import json
 import cost_model
 import llm_circuit_breaker
 import signal_log
-from llm_providers import gemini
+from llm_providers import cerebras, gemini, groq
 
-PROVIDERS = [gemini]
+# Gemini first (cheapest/best), then Cerebras + Groq as fallbacks. Without
+# fallbacks the CEO cast ZERO votes whenever Gemini's free-tier quota hit 0
+# (429) — every setup died at "no CEO provider available" and the system
+# never traded. The cost guard still throttles Gemini spend; these are the
+# free providers it falls back to.
+PROVIDERS = [gemini, cerebras, groq]
 
 SYSTEM_PROMPT = """คุณคือ CEO Agent ในทีมเทรด ตัดสินใจว่าจะ "อนุมัติ" หรือ "ปฏิเสธ" สัญญาณเทรดที่เสนอมา
 โดยพิจารณาจากรายงานของ Technical Analysis, News Agent, Risk Management, และ "ค่า indicator ดิบ" ที่ให้มาด้วยตัวเอง
@@ -145,7 +150,7 @@ def _build_prompt(technical: dict, news: dict, risk: dict, snapshot: dict) -> st
 Technical Analysis เสนอ: bias={technical['bias']}, confidence={technical.get('confidence')}%, เหตุผล: {technical.get('reason')}
 ค่า indicator ดิบ (ตรวจสอบเอง): {json.dumps(indicators, ensure_ascii=False)}
 Technical Agent อ้างความรู้จาก PDF: knowledge_cited={technical.get('knowledge_cited')}, knowledge_note="{technical.get('knowledge_note')}"
-News Agent: ปลอดภัยที่จะเทรด = {news['safe']}
+News Agent: ปลอดภัยที่จะเทรด = {news.get('safe', True)}
 News sentiment ของสกุลเงินที่เกี่ยวข้อง (จากพาดหัวข่าวจริง): {sentiment_block}
 Risk Management: อนุมัติ = {risk['approved']}, เหตุผล: {risk['reason']}
 ต้นทุนการเทรดจริงและ break-even: {cost_block}
