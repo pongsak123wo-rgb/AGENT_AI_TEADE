@@ -229,6 +229,7 @@ const riskInputs = {
   max_total_open_risk_pct: document.getElementById("risk-total-open"),
   daily_loss_limit_pct: document.getElementById("risk-daily"),
   max_total_drawdown_pct: document.getElementById("risk-drawdown"),
+  max_concurrent_positions: document.getElementById("risk-concurrent"),
 };
 
 function renderRiskSnapshot(snap) {
@@ -246,6 +247,9 @@ function renderRiskSnapshot(snap) {
   }
   if (document.activeElement !== riskInputs.max_total_drawdown_pct) {
     riskInputs.max_total_drawdown_pct.value = snap.config.max_total_drawdown_pct;
+  }
+  if (riskInputs.max_concurrent_positions && document.activeElement !== riskInputs.max_concurrent_positions) {
+    riskInputs.max_concurrent_positions.value = snap.config.max_concurrent_positions;
   }
 
   const openPct = snap.total_open_risk_pct;
@@ -651,50 +655,52 @@ if (bt2Btn) {
     const panel = document.getElementById("bt2-result");
     const tf = document.getElementById("bt2-tf").value;
     const bars = document.getElementById("bt2-bars").value || 800;
+    const conc = document.getElementById("bt2-concurrent").value || 6;
     statusEl.textContent = "กำลังรัน (replay ระบบจริงทีละแท่ง อาจใช้เวลา 1-3 นาที)...";
     try {
-      const res = await fetch(`${API}/backtest/v2?entry_tf=${tf}&max_bars=${bars}`, { method: "POST" });
-      const data = await res.json();
-      const rows = Object.entries(data).filter(([, d]) => !d.error);
-      if (!rows.length) {
-        panel.innerHTML = '<p class="placeholder">ไม่มีข้อมูล history (รัน HistoryExporter.mq5 ก่อน)</p>';
+      const res = await fetch(`${API}/backtest/v2?entry_tf=${tf}&max_bars=${bars}&max_concurrent=${conc}`, { method: "POST" });
+      const d = await res.json();
+      if (d.error) {
+        panel.innerHTML = `<p class="placeholder">${d.error}</p>`;
         statusEl.textContent = "รันไม่ได้";
         return;
       }
-      let tw = 0, tl = 0, tr = 0, tt = 0;
-      const body = rows.map(([sym, d]) => {
-        tw += d.win; tl += d.loss; tr += d.total_r; tt += d.trades;
-        const wrCol = (d.win_rate_pct ?? 0) >= 50 ? "var(--green-bright)" : "var(--red-bright)";
-        const expCol = (d.expectancy_r ?? 0) >= 0 ? "var(--green-bright)" : "var(--red-bright)";
-        return `<tr style="border-bottom:1px solid #222;">
+      const money = (v) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}`;
+      const col = (v) => v >= 0 ? "var(--green-bright)" : "var(--red-bright)";
+      const body = Object.entries(d.by_symbol || {}).map(([sym, b]) => `
+        <tr style="border-bottom:1px solid #222;">
           <td style="padding:5px;">${sym}</td>
-          <td style="text-align:center;">${d.trades}</td>
-          <td style="text-align:center;color:var(--green)">${d.win}</td>
-          <td style="text-align:center;color:var(--red)">${d.loss}</td>
-          <td style="text-align:center;color:${wrCol};font-weight:700;">${d.win_rate_pct ?? "-"}%</td>
-          <td style="text-align:center;color:${expCol};font-weight:700;">${d.expectancy_r ?? "-"}R</td>
-          <td style="text-align:center;">${d.total_r}R</td>
-          <td style="text-align:center;">${d.profit_factor ?? "-"}</td>
-          <td style="text-align:center;color:var(--amber)">${d.max_drawdown_r}R</td>
-          <td style="text-align:center;color:#666;font-size:8px;">${d.funnel.engaged}→${d.funnel.entered}</td>
-        </tr>`;
-      }).join("");
-      const totWr = (tw + tl) ? (tw / (tw + tl) * 100).toFixed(1) : "-";
-      const totCol = tr >= 0 ? "var(--green-bright)" : "var(--red-bright)";
+          <td style="text-align:center;">${b.trades}</td>
+          <td style="text-align:center;color:var(--green)">${b.win}</td>
+          <td style="text-align:center;color:var(--red)">${b.loss}</td>
+          <td style="text-align:center;">${b.win_rate_pct ?? "-"}%</td>
+          <td style="text-align:center;color:${col(b.net)};font-weight:700;">${money(b.net)}</td>
+          <td style="text-align:center;color:var(--amber)">${b.cost.toFixed(2)}</td>
+        </tr>`).join("");
+      const f = d.funnel || {};
       panel.innerHTML = `
-        <div style="margin-bottom:10px;font-size:12px;">
-          รวม: <strong style="color:${totCol}">${tr >= 0 ? "+" : ""}${tr.toFixed(2)}R</strong>
-          · ${tt} ไม้ · win rate <strong>${totWr}%</strong>
+        <div style="display:flex;gap:16px;flex-wrap:wrap;margin-bottom:12px;font-size:12px;">
+          <div>เงิน <strong>${d.start_equity.toLocaleString()}</strong> →
+               <strong style="color:${col(d.net_profit)}">${d.end_equity.toLocaleString()}</strong></div>
+          <div>สุทธิ <strong style="color:${col(d.net_profit)}">${money(d.net_profit)} (${money(d.return_pct)}%)</strong></div>
+          <div>Max DD <strong style="color:var(--amber)">${d.max_drawdown_money.toFixed(2)} (${d.max_drawdown_pct}%)</strong></div>
         </div>
-        <table style="width:100%;border-collapse:collapse;font-size:9px;min-width:560px;">
+        <div style="font-size:10px;color:var(--text-dim);margin-bottom:10px;">
+          gross ${money(d.gross_profit)} − ต้นทุน ${d.total_cost.toFixed(2)} = <strong style="color:${col(d.net_profit)}">${money(d.net_profit)}</strong>
+          · ${d.trades} ไม้ (W${d.win}/L${d.loss}) · win rate ${d.win_rate_pct ?? "-"}%
+          · expectancy ${d.expectancy_money ?? "-"}/ไม้ (${d.expectancy_r ?? "-"}R) · PF ${d.profit_factor ?? "-"}
+          · เปิดพร้อมกันสูงสุด ${d.max_concurrent}
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:9px;min-width:460px;">
           <thead><tr style="color:#888;border-bottom:1px solid #444;">
             <th style="text-align:left;padding:4px;">Symbol</th><th>ไม้</th><th>W</th><th>L</th>
-            <th>Win%</th><th>Expectancy</th><th>Total</th><th>PF</th><th>MaxDD</th><th>โซน→เข้า</th>
+            <th>Win%</th><th>กำไรสุทธิ</th><th>ต้นทุน</th>
           </tr></thead><tbody>${body}</tbody></table>
         <p class="placeholder" style="font-size:9px;margin-top:8px;">
-          ใช้ logic เดียวกับระบบจริง: zone gate · multi-TF · RSI/trend gate · SL=max(ATR×2, spread×8, 0.12%) · TP=2R · audit score ≥ 3
+          หักต้นทุนจริงแล้ว (spread + slippage + commission + swap) · correlation veto ${f.corr_blocked || 0} ครั้ง ·
+          ชนเพดานไม้ ${f.cap_blocked || 0} ครั้ง · โซน ${f.engaged || 0} → เข้า ${f.entered || 0}
         </p>`;
-      statusEl.textContent = `รันเสร็จ (${tf}, ${bars} แท่ง)`;
+      statusEl.textContent = `รันเสร็จ (${tf}, ${bars} แท่ง, สูงสุด ${conc} ไม้)`;
     } catch (e) {
       statusEl.textContent = "รันไม่สำเร็จ — เชื่อมต่อ backend ไม่ได้";
     }

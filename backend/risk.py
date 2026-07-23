@@ -13,9 +13,14 @@ from dataclasses import dataclass, field
 @dataclass
 class RiskConfig:
     risk_per_trade_pct: float = 0.5       # risk ต่อไม้ (% ของ equity)
-    max_total_open_risk_pct: float = 3.0  # risk รวมสูงสุดของทุกไม้ที่เปิดพร้อมกัน
+    max_total_open_risk_pct: float = 3.5  # risk รวมสูงสุดของทุกไม้ที่เปิดพร้อมกัน
     daily_loss_limit_pct: float = 5.0     # ขาดทุนสะสมต่อวันสูงสุด
     max_total_drawdown_pct: float = 10.0  # ขาดทุนสะสมรวมสูงสุดจาก equity สูงสุด
+    # Hard cap on simultaneous positions, independent of the percentage
+    # budget above. The percentage cap alone drifts with risk_per_trade_pct
+    # (0.5% into a 10% budget silently allows 20 positions); this states the
+    # intended concurrency directly.
+    max_concurrent_positions: int = 6     # 5-7 คือช่วงที่ตั้งใจ
 
 
 @dataclass
@@ -91,7 +96,8 @@ class RiskManager:
     def update_config(self, **kwargs):
         for k, v in kwargs.items():
             if hasattr(self.config, k) and v is not None:
-                setattr(self.config, k, float(v))
+                # position count is a count, not a percentage
+                setattr(self.config, k, int(v) if k == "max_concurrent_positions" else float(v))
 
     def sync_from_account(self, account: dict):
         """Pull real equity from the MT5 snapshot and recompute loss/drawdown."""
@@ -148,6 +154,15 @@ class RiskManager:
                     "lot": 0.0,
                     "reason": f"ห้ามเบิ้ลไม้ — {symbol} มี {bias} เปิดอยู่แล้ว ticket #{pos.ticket}",
                 }
+
+        # Hard concurrency cap — plain count, so it can't be widened by
+        # accident when risk_per_trade_pct changes.
+        if len(st.open_positions) >= cfg.max_concurrent_positions:
+            return {
+                "approved": False,
+                "lot": 0.0,
+                "reason": f"เปิดครบ {len(st.open_positions)}/{cfg.max_concurrent_positions} ไม้แล้ว — รอปิดก่อนค่อยเปิดใหม่",
+            }
 
         # Correlation veto — refuse to stack a directionally-equivalent bet
         # across correlated symbols (e.g. EURUSD buy + GBPUSD buy), even if

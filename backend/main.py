@@ -410,6 +410,7 @@ class RiskConfigUpdate(BaseModel):
     max_total_open_risk_pct: float | None = None
     daily_loss_limit_pct: float | None = None
     max_total_drawdown_pct: float | None = None
+    max_concurrent_positions: int | None = None
 
 
 @app.get("/risk")
@@ -505,14 +506,15 @@ def get_backtest_summary():
 
 
 @app.post("/backtest/v2")
-def run_backtest_v2(entry_tf: str = "M15", max_bars: int = 800, symbol: str | None = None):
-    """Backtest that replays the LIVE pipeline (zones, multi-TF, adaptive
-    SL/TP, risk gates, audit score) — unlike /backtest/run-batch, which
-    tests the older simplified strategy."""
+def run_backtest_v2(entry_tf: str = "M15", max_bars: int = 800,
+                    max_concurrent: int = 6, symbol: str | None = None):
+    """Portfolio backtest that replays the LIVE pipeline — zones, multi-TF,
+    adaptive SL/TP, risk gates, correlation veto, a shared position cap and
+    real costs (spread + commission + swap), on one simulated account."""
     import backtest_v2
-    if symbol:
-        return {symbol: backtest_v2.run(symbol, entry_tf=entry_tf, max_bars=max_bars)}
-    return backtest_v2.run_batch(entry_tf=entry_tf, max_bars=max_bars)
+    syms = [symbol] if symbol else None
+    return backtest_v2.run_portfolio(syms, entry_tf=entry_tf, max_bars=max_bars,
+                                     max_concurrent=max_concurrent)
 
 
 @app.get("/account")
