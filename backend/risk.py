@@ -102,7 +102,7 @@ class RiskManager:
         st.daily_loss_used_pct = max(0.0, (st.equity_start_of_day - equity) / st.equity_start_of_day * 100)
         st.total_drawdown_pct = max(0.0, (st.equity_peak - equity) / st.equity_peak * 100)
 
-    def evaluate(self, symbol: str, bias: str, spread: float | None = None, atr: float | None = None, mtf_confluence: str | None = None, ema_trend: str | None = None, rsi_state: str | None = None) -> dict:
+    def evaluate(self, symbol: str, bias: str, spread: float | None = None, atr: float | None = None, mtf_confluence: str | None = None, ema_trend: str | None = None, rsi_state: str | None = None, price: float | None = None) -> dict:
         if bias == "none":
             return {"approved": False, "lot": 0.0, "reason": "ไม่มี setup ให้ประเมิน risk"}
 
@@ -156,20 +156,27 @@ class RiskManager:
         if corr["blocked"]:
             return {"approved": False, "lot": 0.0, "reason": corr["reason"]}
 
-        # Spread gating — same idea as the EA's "block NEW entries if
-        # spread > threshold": if the spread itself eats too much of the
-        # ATR (the move you're trying to catch), the trade is paying away
-        # its edge before it even starts.
-        MAX_SPREAD_TO_ATR_RATIO = 0.5
-        if spread is not None and atr is not None and atr > 0:
-            spread_atr_ratio = spread / atr
-            if spread_atr_ratio > MAX_SPREAD_TO_ATR_RATIO:
+        # Spread gating — block entries when the spread is abnormally wide
+        # (news spike / thin liquidity) relative to the stop we'd actually
+        # use.
+        #
+        # This used to compare spread against the raw ATR, but that ATR is
+        # computed from M1 candles and is tiny, so an ordinary spread looked
+        # like 50-90% of it and vetoed nearly every setup. The stop distance
+        # (see CEOAgent.decide) is floored at price * 0.0012, so measuring
+        # the spread against that floor is both instrument-agnostic and
+        # actually meaningful: it asks "would the spread eat a big chunk of
+        # the smallest stop we'd ever place?"
+        MAX_SPREAD_TO_STOP_RATIO = 0.30
+        if spread is not None and price:
+            min_stop = price * 0.0012
+            if min_stop > 0 and spread > min_stop * MAX_SPREAD_TO_STOP_RATIO:
                 return {
                     "approved": False,
                     "lot": 0.0,
                     "reason": (
-                        f"Spread กว้างเกินไป ({spread} = {spread_atr_ratio:.0%} ของ ATR {atr}) "
-                        f"— เลี่ยงเข้าไม้ตอนสเปรดกว้าง ({symbol})"
+                        f"Spread กว้างผิดปกติ ({spread} = {spread / min_stop:.0%} ของระยะ stop ขั้นต่ำ "
+                        f"{min_stop:.5f}) — เลี่ยงเข้าไม้ ({symbol})"
                     ),
                 }
 

@@ -196,6 +196,7 @@ async def run_cycle():
                 mtf_confluence=mtf_confluence,
                 ema_trend=indicators.get("ema_trend"),
                 rsi_state=indicators.get("rsi_state"),
+                price=snapshot["price"],
             )
     await broadcast(risk_agent.report(risk))
     await asyncio.sleep(0.5)

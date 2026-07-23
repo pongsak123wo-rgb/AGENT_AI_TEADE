@@ -225,10 +225,11 @@ class RiskAgent:
         self.risk_manager = risk_manager
 
     def evaluate(self, symbol: str, bias: str, spread: float | None = None, atr: float | None = None,
-                 mtf_confluence: str | None = None, ema_trend: str | None = None, rsi_state: str | None = None) -> dict:
+                 mtf_confluence: str | None = None, ema_trend: str | None = None, rsi_state: str | None = None,
+                 price: float | None = None) -> dict:
         return self.risk_manager.evaluate(
             symbol, bias, spread=spread, atr=atr, mtf_confluence=mtf_confluence,
-            ema_trend=ema_trend, rsi_state=rsi_state,
+            ema_trend=ema_trend, rsi_state=rsi_state, price=price,
         )
 
     def report(self, risk: dict) -> AgentMessage:
