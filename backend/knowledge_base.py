@@ -27,7 +27,16 @@ KNOWLEDGE_DIR = Path(__file__).parent / "knowledge"
 DB_DIR = Path(__file__).parent / "chroma_db"
 
 _client = chromadb.PersistentClient(path=str(DB_DIR))
-_collection = _client.get_or_create_collection("trading_knowledge")
+
+def _get_collection():
+    try:
+        return _client.get_or_create_collection("trading_knowledge")
+    except Exception:
+        try:
+            _client.delete_collection("trading_knowledge")
+        except Exception:
+            pass
+        return _client.get_or_create_collection("trading_knowledge")
 
 
 def _chunk_text(text: str, size: int = 800, overlap: int = 150) -> list[str]:
@@ -39,58 +48,83 @@ def _chunk_text(text: str, size: int = 800, overlap: int = 150) -> list[str]:
     return [c.strip() for c in chunks if c.strip()]
 
 
-def _ocr_page(page: fitz.Page) -> str:
-    pix = page.get_pixmap(dpi=200)
-    img = Image.open(io.BytesIO(pix.tobytes("png")))
-    return pytesseract.image_to_string(
-        img, lang="tha+eng", config=f"--tessdata-dir {_TESSDATA_DIR}"
-    )
+def _ocr_page(page) -> str:
+    if not fitz or not pytesseract or not Image:
+        return ""
+    try:
+        pix = page.get_pixmap(dpi=200)
+        img = Image.open(io.BytesIO(pix.tobytes("png")))
+        return pytesseract.image_to_string(
+            img, lang="tha+eng", config=f"--tessdata-dir {_TESSDATA_DIR}"
+        )
+    except Exception:
+        return ""
 
 
 def ingest_pdf(path: Path) -> int:
-    doc = fitz.open(str(path))
-    page_texts = []
-    for page in doc:
-        text = page.get_text().strip()
-        if not text:
-            text = _ocr_page(page).strip()
-        page_texts.append(text)
-    full_text = "\n".join(page_texts)
-    chunks = _chunk_text(full_text)
+    if not fitz:
+        return 0
+    try:
+        doc = fitz.open(str(path))
+        page_texts = []
+        for page in doc:
+            text = page.get_text().strip()
+            if not text:
+                text = _ocr_page(page).strip()
+            page_texts.append(text)
+        full_text = "\n".join(page_texts)
+        chunks = _chunk_text(full_text)
 
-    ids = [f"{path.stem}-{i}" for i in range(len(chunks))]
-    metadatas = [{"source": path.name, "chunk": i} for i in range(len(chunks))]
-
-    if chunks:
-        _collection.upsert(ids=ids, documents=chunks, metadatas=metadatas)
-    return len(chunks)
-
-
-def ingest_all() -> dict:
-    KNOWLEDGE_DIR.mkdir(exist_ok=True)
-    results = {}
-    for pdf_path in KNOWLEDGE_DIR.glob("*.pdf"):
-        results[pdf_path.name] = ingest_pdf(pdf_path)
-    return results
+        ids = [f"{path.stem}-{i}" for i in range(len(chunks))]
+        metadatas = [{"source": path.name, "chunk": i} for i in range(len(chunks))]
+        col = _get_collection()
+        if chunks and col:
+            col.upsert(ids=ids, documents=chunks, metadatas=metadatas)
+        return len(chunks)
+    except Exception:
+        return 0
 
 
-def ingest_text(source_name: str, text: str) -> int:
-    """Ingest web-research snippets the same way as a PDF — same chunking,
-    same collection, tagged by source so it's traceable later."""
-    chunks = _chunk_text(text)
-    ids = [f"web-{source_name}-{i}" for i in range(len(chunks))]
-    metadatas = [{"source": source_name, "chunk": i, "origin": "web"} for i in range(len(chunks))]
-    if chunks:
-        _collection.upsert(ids=ids, documents=chunks, metadatas=metadatas)
-    return len(chunks)
+def ingest_all() -> int:
+    if not KNOWLEDGE_DIR.exists():
+        return 0
+    total = 0
+    for pdf in KNOWLEDGE_DIR.glob("*.pdf"):
+        total += ingest_pdf(pdf)
+    return total
+
+
+def ingest_web(source_name: str, text: str) -> int:
+    try:
+        chunks = _chunk_text(text)
+        ids = [f"web-{source_name}-{i}" for i in range(len(chunks))]
+        metadatas = [{"source": source_name, "chunk": i, "origin": "web"} for i in range(len(chunks))]
+        col = _get_collection()
+        if chunks and col:
+            col.upsert(ids=ids, documents=chunks, metadatas=metadatas)
+        return len(chunks)
+    except Exception:
+        return 0
 
 
 def retrieve(query: str, n_results: int = 4) -> list[str]:
-    if _collection.count() == 0:
+    try:
+        col = _get_collection()
+        if not col:
+            return []
+        cnt = col.count()
+        if cnt == 0:
+            return []
+        res = col.query(query_texts=[query], n_results=min(n_results, cnt))
+        return res["documents"][0] if res and res.get("documents") else []
+    except Exception:
         return []
-    res = _collection.query(query_texts=[query], n_results=min(n_results, _collection.count()))
-    return res["documents"][0] if res["documents"] else []
 
 
 def status() -> dict:
-    return {"chunks_indexed": _collection.count(), "knowledge_dir": str(KNOWLEDGE_DIR)}
+    try:
+        col = _get_collection()
+        cnt = col.count() if col else 0
+    except Exception:
+        cnt = 0
+    return {"chunks_indexed": cnt, "knowledge_dir": str(KNOWLEDGE_DIR)}
