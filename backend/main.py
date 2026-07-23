@@ -71,7 +71,21 @@ async def auth_middleware(request, call_next):
     if DASHBOARD_PASSWORD and request.method != "OPTIONS":
         token = request.headers.get("X-Auth-Token") or request.query_params.get("token", "")
         if not _token_ok(token):
-            return JSONResponse({"detail": "unauthorized"}, status_code=401)
+            # This middleware runs OUTSIDE CORSMiddleware, so a bare 401 here
+            # skips CORS and the browser blocks it — the login overlay never
+            # sees the 401 and never appears (though non-browser clients like
+            # the MCP server, which ignore CORS, work fine). Echo the CORS
+            # headers manually so the browser accepts the 401 and shows login.
+            origin = request.headers.get("origin", "*")
+            return JSONResponse(
+                {"detail": "unauthorized"},
+                status_code=401,
+                headers={
+                    "Access-Control-Allow-Origin": origin,
+                    "Access-Control-Allow-Credentials": "true",
+                    "Vary": "Origin",
+                },
+            )
     return await call_next(request)
 
 
