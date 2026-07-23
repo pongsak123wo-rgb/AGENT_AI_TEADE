@@ -209,6 +209,33 @@ def t_run_backtest_v2(args: dict) -> dict:
     return _text(_post(path, {}))
 
 
+def t_reset_positions(_args: dict) -> dict:
+    """Clear MT5 open positions memory in the backend."""
+    return _text(_post("/risk/reset-positions", {}))
+
+
+def t_agent_learning_patterns(_args: dict) -> dict:
+    """Get CEO provider accuracy and Technical Agent learned patterns."""
+    return _text({
+        "provider_accuracy": _get("/signals/provider-accuracy"),
+        "learned_patterns": _get("/signals/patterns"),
+        "structure_patterns": _get("/signals/structure-patterns"),
+    })
+
+
+def t_research_knowledge(_args: dict) -> dict:
+    """Get Data/Research Agent logs and Knowledge Base (RAG) status."""
+    return _text({
+        "research_log": _get("/research/log"),
+        "knowledge_status": _get("/knowledge/status"),
+    })
+
+
+def t_force_ingest(_args: dict) -> dict:
+    """Force agents to summarize and ingest new research into RAG."""
+    return _text(_post("/knowledge/ingest", {}))
+
+
 TOOLS = [
     ("get_system_status", "สถานะระบบโดยรวม (cycle, MT5, LLM, alert, บัญชี)", {}, t_system_status),
     ("get_watched_zones", "โซนที่แต่ละสินทรัพย์เฝ้าอยู่ + เทรน multi-TF + แตะโซนหรือยัง",
@@ -229,6 +256,10 @@ TOOLS = [
          "max_concurrent": {"type": "integer", "description": "จำนวนไม้เปิดพร้อมกันสูงสุด (ค่าเริ่มต้น 6)"},
          "symbol": {"type": "string", "description": "ระบุชื่อคู่เงินถ้าต้องการเทสแค่ตัวเดียว (เช่น XAUUSD)"}
      }, t_run_backtest_v2),
+    ("reset_risk_positions", "เคลียร์ความจำไม้ที่ Backend ค้างอยู่ (เมื่อ MT5 ปิดไปแล้ว)", {}, t_reset_positions),
+    ("get_agent_learning_patterns", "ดูสถิติความฉลาด: CEO เชื่อฟังค่ายไหน และ Technical จำแพทเทิร์นกราฟแบบไหนได้", {}, t_agent_learning_patterns),
+    ("get_research_and_knowledge", "ดูประวัติการค้นคว้าความรู้ของ Data/Research Agent และสถานะ RAG", {}, t_research_knowledge),
+    ("force_knowledge_ingest", "บังคับให้ระบบสรุปความรู้ที่ได้ใหม่แล้วฝังลงสมองกล (RAG) ทันที", {}, t_force_ingest),
 ]
 HANDLERS = {name: fn for name, _d, _s, fn in TOOLS}
 
