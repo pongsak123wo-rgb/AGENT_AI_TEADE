@@ -497,6 +497,17 @@ def get_backtest_summary():
     return backtest_log.summary()
 
 
+@app.post("/backtest/v2")
+def run_backtest_v2(entry_tf: str = "M15", max_bars: int = 800, symbol: str | None = None):
+    """Backtest that replays the LIVE pipeline (zones, multi-TF, adaptive
+    SL/TP, risk gates, audit score) — unlike /backtest/run-batch, which
+    tests the older simplified strategy."""
+    import backtest_v2
+    if symbol:
+        return {symbol: backtest_v2.run(symbol, entry_tf=entry_tf, max_bars=max_bars)}
+    return backtest_v2.run_batch(entry_tf=entry_tf, max_bars=max_bars)
+
+
 @app.get("/account")
 def get_account():
     live = mt5_bridge.read_snapshot()

@@ -643,6 +643,64 @@ document.getElementById("backtest-run-btn").addEventListener("click", async () =
   }
 });
 
+// --- Backtest v2 (replays the live pipeline) ---
+const bt2Btn = document.getElementById("bt2-run");
+if (bt2Btn) {
+  bt2Btn.addEventListener("click", async () => {
+    const statusEl = document.getElementById("bt2-status");
+    const panel = document.getElementById("bt2-result");
+    const tf = document.getElementById("bt2-tf").value;
+    const bars = document.getElementById("bt2-bars").value || 800;
+    statusEl.textContent = "กำลังรัน (replay ระบบจริงทีละแท่ง อาจใช้เวลา 1-3 นาที)...";
+    try {
+      const res = await fetch(`${API}/backtest/v2?entry_tf=${tf}&max_bars=${bars}`, { method: "POST" });
+      const data = await res.json();
+      const rows = Object.entries(data).filter(([, d]) => !d.error);
+      if (!rows.length) {
+        panel.innerHTML = '<p class="placeholder">ไม่มีข้อมูล history (รัน HistoryExporter.mq5 ก่อน)</p>';
+        statusEl.textContent = "รันไม่ได้";
+        return;
+      }
+      let tw = 0, tl = 0, tr = 0, tt = 0;
+      const body = rows.map(([sym, d]) => {
+        tw += d.win; tl += d.loss; tr += d.total_r; tt += d.trades;
+        const wrCol = (d.win_rate_pct ?? 0) >= 50 ? "var(--green-bright)" : "var(--red-bright)";
+        const expCol = (d.expectancy_r ?? 0) >= 0 ? "var(--green-bright)" : "var(--red-bright)";
+        return `<tr style="border-bottom:1px solid #222;">
+          <td style="padding:5px;">${sym}</td>
+          <td style="text-align:center;">${d.trades}</td>
+          <td style="text-align:center;color:var(--green)">${d.win}</td>
+          <td style="text-align:center;color:var(--red)">${d.loss}</td>
+          <td style="text-align:center;color:${wrCol};font-weight:700;">${d.win_rate_pct ?? "-"}%</td>
+          <td style="text-align:center;color:${expCol};font-weight:700;">${d.expectancy_r ?? "-"}R</td>
+          <td style="text-align:center;">${d.total_r}R</td>
+          <td style="text-align:center;">${d.profit_factor ?? "-"}</td>
+          <td style="text-align:center;color:var(--amber)">${d.max_drawdown_r}R</td>
+          <td style="text-align:center;color:#666;font-size:8px;">${d.funnel.engaged}→${d.funnel.entered}</td>
+        </tr>`;
+      }).join("");
+      const totWr = (tw + tl) ? (tw / (tw + tl) * 100).toFixed(1) : "-";
+      const totCol = tr >= 0 ? "var(--green-bright)" : "var(--red-bright)";
+      panel.innerHTML = `
+        <div style="margin-bottom:10px;font-size:12px;">
+          รวม: <strong style="color:${totCol}">${tr >= 0 ? "+" : ""}${tr.toFixed(2)}R</strong>
+          · ${tt} ไม้ · win rate <strong>${totWr}%</strong>
+        </div>
+        <table style="width:100%;border-collapse:collapse;font-size:9px;min-width:560px;">
+          <thead><tr style="color:#888;border-bottom:1px solid #444;">
+            <th style="text-align:left;padding:4px;">Symbol</th><th>ไม้</th><th>W</th><th>L</th>
+            <th>Win%</th><th>Expectancy</th><th>Total</th><th>PF</th><th>MaxDD</th><th>โซน→เข้า</th>
+          </tr></thead><tbody>${body}</tbody></table>
+        <p class="placeholder" style="font-size:9px;margin-top:8px;">
+          ใช้ logic เดียวกับระบบจริง: zone gate · multi-TF · RSI/trend gate · SL=max(ATR×2, spread×8, 0.12%) · TP=2R · audit score ≥ 3
+        </p>`;
+      statusEl.textContent = `รันเสร็จ (${tf}, ${bars} แท่ง)`;
+    } catch (e) {
+      statusEl.textContent = "รันไม่สำเร็จ — เชื่อมต่อ backend ไม่ได้";
+    }
+  });
+}
+
 async function loadMt5HistoryStatus() {
   const panel = document.getElementById("mt5-history-status-panel");
   try {

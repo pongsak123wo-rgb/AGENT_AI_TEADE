@@ -169,7 +169,23 @@
   <div class="tab-panel" id="tab-backtest">
     <div class="results-grid">
       <div class="results-col">
-        <h2>รัน Backtest</h2>
+        <h2>⭐ Backtest v2 — ทดสอบระบบจริง (zone gate + multi-TF + adaptive SL/TP)</h2>
+        <div class="risk-panel" style="max-width:360px;">
+          <label>Entry TF
+            <select id="bt2-tf">
+              <option value="M15">M15 (คู่กับ H4)</option>
+              <option value="M5">M5 (คู่กับ H1)</option>
+            </select>
+          </label>
+          <label>จำนวนแท่งย้อนหลัง <input id="bt2-bars" type="number" value="800" step="100"></label>
+          <button id="bt2-run">รัน Backtest v2 ทุกสินทรัพย์</button>
+          <p id="bt2-status" class="placeholder" style="margin-top:8px;">ยังไม่ได้รัน</p>
+        </div>
+        <div class="winrate-panel" id="bt2-result" style="text-align:left; overflow-x:auto;">
+          <p class="placeholder">กดรันเพื่อทดสอบกลยุทธ์ปัจจุบัน</p>
+        </div>
+
+        <h2 style="margin-top:22px;">Backtest เดิม (กลยุทธ์เก่า — ไว้เทียบเฉยๆ)</h2>
         <div class="risk-panel" style="max-width: 360px;">
           <label>ช่วงเวลา <input id="backtest-period" type="text" value="90d" placeholder="เช่น 90d, 180d"></label>
           <label style="display:flex; align-items:center; gap:6px; flex-direction:row;">
@@ -310,6 +326,6 @@
   </div>
 
   <script src="office.js?v=7"></script>
-  <script src="app.js?v=10"></script>
+  <script src="app.js?v=11"></script>
 </body>
 </html>
