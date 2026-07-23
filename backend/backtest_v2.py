@@ -63,6 +63,7 @@ SWAP_PER_LOT_PER_DAY = -2.0     # financing drag on an overnight position
 TYPICAL_SPREAD_PCT = {
     "EURUSD": 0.000012, "GBPUSD": 0.000018, "USDJPY": 0.000014,
     "EURJPY": 0.000022, "GBPJPY": 0.000030, "XAUUSD": 0.000060,
+    "BTCUSD": 0.000100,
 }
 DEFAULT_SPREAD_PCT = 0.00002
 

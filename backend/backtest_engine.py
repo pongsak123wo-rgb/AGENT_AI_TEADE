@@ -36,6 +36,7 @@ SYMBOL_MAP = {
     "XAUUSD": "GC=F",
     "EURJPY": "EURJPY=X",
     "GBPJPY": "GBPJPY=X",
+    "BTCUSD": "BTC-USD",
 }
 
 WINDOW = 60  # bars of history fed to compute_snapshot at each step

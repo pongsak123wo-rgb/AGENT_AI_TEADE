@@ -85,6 +85,7 @@ SYMBOLS = {
     "XAUUSD": 2342.50,
     "EURJPY": 169.50,
     "GBPJPY": 197.60,
+    "BTCUSD": 95000.0,
 }
 
 data_agent = DataAgent(symbols=SYMBOLS)

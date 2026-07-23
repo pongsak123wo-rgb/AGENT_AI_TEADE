@@ -29,6 +29,7 @@ SYMBOL_CURRENCIES = {
     "XAUUSD": ["USD"],
     "EURJPY": ["EUR", "JPY"],
     "GBPJPY": ["GBP", "JPY"],
+    "BTCUSD": ["BTC", "USD"],
 }
 
 

@@ -24,7 +24,7 @@ import time
 # Symbols to snapshot — mirrors main.SYMBOLS (kept here to avoid a circular
 # import). Override with MT5_SYMBOLS="EURUSD,GBPUSD,..." if the VPS terminal
 # watches a different set.
-DEFAULT_SYMBOLS = ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "EURJPY", "GBPJPY"]
+DEFAULT_SYMBOLS = ["EURUSD", "GBPUSD", "USDJPY", "XAUUSD", "EURJPY", "GBPJPY", "BTCUSD"]
 
 _mt5 = None
 _init_ok = False

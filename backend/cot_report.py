@@ -52,6 +52,7 @@ MARKETS = {
 # NEGATIVE of yen positioning.
 PAIR_LEGS = {
     "XAUUSD": ("GOLD", None),
+    "BTCUSD": ("BITCOIN", None),
     "EURUSD": ("EUR", None),
     "GBPUSD": ("GBP", None),
     "USDJPY": ("JPY", "INVERT"),
