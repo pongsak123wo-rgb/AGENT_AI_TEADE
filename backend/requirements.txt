@@ -5,6 +5,7 @@ anthropic
 ta
 pandas
 pypdf
+PyMuPDF
 python-dotenv
 google-generativeai
 groq
