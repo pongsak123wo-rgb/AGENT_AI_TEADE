@@ -13,6 +13,7 @@ now uses cloud providers only, with Gemini as the primary.
 from __future__ import annotations
 
 import json
+import os
 
 import llm_circuit_breaker
 import signal_log
@@ -170,6 +171,19 @@ def analyze(symbol: str, indicator_snapshot: dict) -> dict:
 {mistakes_block}
 
 วิเคราะห์และตอบเป็น JSON ตามรูปแบบที่กำหนด"""
+
+    # Data-collection mode: the Technical Agent is the real bottleneck —
+    # it keeps returning bias="none" on conflicting signals, so nothing ever
+    # reaches the (already-relaxed) CEO. When collecting data we ask it to
+    # commit to a direction anyway (lower confidence), so trades actually get
+    # placed and the learning loop gets fed. This lowers signal quality on
+    # purpose; turn COLLECT_MODE off once enough trades are collected.
+    if os.environ.get("COLLECT_MODE") == "1":
+        user_message += (
+            "\n\n[โหมดเก็บข้อมูล] ตอนนี้กำลังเก็บสถิติเพื่อฝึกระบบ — ห้ามตอบ bias=\"none\" "
+            "ถ้าสัญญาณขัดแย้งกัน ให้เลือกฝั่งที่มีน้ำหนักมากกว่าเล็กน้อย (buy หรือ sell) "
+            "แล้วตั้ง confidence ต่ำๆ (30-50%) สะท้อนความไม่แน่นอน — ขอแค่ให้มีทิศทางเสมอ"
+        )
 
     raw, provider_name = _call_first_available(SYSTEM_PROMPT, user_message)
 
