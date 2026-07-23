@@ -286,18 +286,37 @@ async def run_cycle():
     # 1) REAL closed-deal P/L from MT5 (exact money, commission+swap included)
     # 2) price hit SL/TP as recorded
     # 3) ticket vanished from MT5 → estimate from last price (last resort)
+    # Re-read the snapshot FIRST: `live` above was captured at the start of
+    # this cycle, before any order was placed, so a brand-new ticket looked
+    # "already gone from MT5" and got closed instantly at its entry price.
+    fresh = mt5_bridge.read_snapshot()
+    live_tickets = {p["ticket"] for p in fresh["positions"]} if fresh else set()
+
+    # Settle ONLY against real broker prices. data_agent.prices is seeded
+    # with mock values and a symbol keeps its seed until it ticks in this
+    # process, so using it settled live trades against a fake price (an
+    # open EURJPY at 186 was closed as a loss against the 169.50 seed).
+    real_prices: dict[str, float] = {}
+    if fresh:
+        for sym, px in (fresh.get("symbols") or {}).items():
+            if px.get("bid") and px.get("ask"):
+                real_prices[sym] = (px["bid"] + px["ask"]) / 2
+
     settled = []
     open_tickets = signal_log.get_open_tickets()
-    if open_tickets:
+    if open_tickets and fresh:
         try:
             close_info = mt5_direct.get_close_info(open_tickets)
-            settled += signal_log.settle_by_real_deals(close_info)
+            # live_tickets guard: a partial close (the EA's TP1/trailing
+            # management) also writes a closing deal, so only settle tickets
+            # that are genuinely gone from MT5's open-position list.
+            settled += signal_log.settle_by_real_deals(close_info, live_tickets)
         except Exception:
             pass
-    settled += signal_log.check_open_signals(data_agent.prices)
-    if live:
-        live_tickets = {p["ticket"] for p in live["positions"]}
-        settled += signal_log.check_settled_by_ticket(data_agent.prices, live_tickets)
+
+    if real_prices:
+        settled += signal_log.check_open_signals(real_prices)
+        settled += signal_log.check_settled_by_ticket(real_prices, live_tickets)
     for s in settled:
         risk_manager.close_position(s["symbol"], s["action"])
         if s["result"] == "win":

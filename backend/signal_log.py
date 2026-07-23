@@ -258,7 +258,7 @@ def get_open_tickets() -> list[int]:
     return [r["ticket"] for r in rows]
 
 
-def settle_by_real_deals(close_info: dict) -> list[dict]:
+def settle_by_real_deals(close_info: dict, live_tickets: set | None = None) -> list[dict]:
     """Settle open signals using REAL closed-deal data from MT5.
 
     close_info: {ticket: {net_profit, exit_price, closed_at, ...}} from
@@ -281,6 +281,13 @@ def settle_by_real_deals(close_info: dict) -> list[dict]:
 
     settled = []
     for row in rows:
+        # A partial close (the EA's TP1/trailing management) also writes a
+        # DEAL_ENTRY_OUT, so a deal existing does NOT mean the position is
+        # finished. Only settle once the ticket is genuinely gone from MT5's
+        # open-position list — otherwise a half-closed winner gets recorded
+        # as fully closed while it's still running.
+        if live_tickets is not None and row["ticket"] in live_tickets:
+            continue
         info = close_info.get(row["ticket"])
         if not info:
             continue
