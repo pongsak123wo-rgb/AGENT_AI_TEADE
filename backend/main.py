@@ -495,6 +495,20 @@ def get_monitor_status():
     return monitor.status()
 
 
+@app.get("/collect-mode")
+def get_collect_mode():
+    return {"enabled": os.environ.get("COLLECT_MODE") == "1"}
+
+
+@app.post("/collect-mode")
+def set_collect_mode(on: bool = True):
+    """Toggle data-collection mode at runtime (no restart, no VPS edit).
+    ON lowers the CEO approval bar so more trades go through to feed the
+    learning mechanisms; turn OFF once enough real trades are collected."""
+    os.environ["COLLECT_MODE"] = "1" if on else "0"
+    return {"enabled": on}
+
+
 @app.get("/cot/status")
 def get_cot_status():
     """Large-speculator positioning per symbol from the CFTC's weekly COT."""

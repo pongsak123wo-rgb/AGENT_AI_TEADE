@@ -13,6 +13,7 @@ local model — better no vote than a low-quality one.
 from __future__ import annotations
 
 import json
+import os
 
 import cost_model
 import llm_circuit_breaker
@@ -277,6 +278,15 @@ def decide(technical: dict, news: dict, risk: dict, snapshot: dict) -> dict:
         threshold = 0.45
     else:
         threshold = 0.5
+
+    # Data-collection mode (COLLECT_MODE=1): the learning mechanisms (ML,
+    # win-rate patterns, RSI×EMA matrix) need dozens of closed trades before
+    # they can learn anything, but the live gates are strict enough that few
+    # trades ever get placed. This lowers the council's bar so more setups go
+    # through — deliberately trading quantity for the data the system needs
+    # to start learning. Turn OFF once enough real trades are collected.
+    if os.environ.get("COLLECT_MODE") == "1":
+        threshold = min(threshold, 0.30)
 
     score_ratio = (weighted_score / total_weight) if total_weight > 0 else 0.0
     approved = score_ratio >= threshold

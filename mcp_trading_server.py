@@ -190,6 +190,13 @@ def t_why_no_trade(_args: dict) -> dict:
     })
 
 
+def t_collect_mode(args: dict) -> dict:
+    """Turn data-collection mode on/off — lowers the approval bar so more
+    trades go through to feed the learning mechanisms. Pass {"on": true|false}."""
+    on = args.get("on", True)
+    return _text(_post(f"/collect-mode?on={'true' if on else 'false'}", {}))
+
+
 def t_cost(_args: dict) -> dict:
     """Gemini spend against the monthly budget cap."""
     return _text({"cost_guard": _get("/cost-guard/status"),
@@ -260,6 +267,8 @@ TOOLS = [
     ("get_agent_learning_patterns", "ดูสถิติความฉลาด: CEO เชื่อฟังค่ายไหน และ Technical จำแพทเทิร์นกราฟแบบไหนได้", {}, t_agent_learning_patterns),
     ("get_research_and_knowledge", "ดูประวัติการค้นคว้าความรู้ของ Data/Research Agent และสถานะ RAG", {}, t_research_knowledge),
     ("force_knowledge_ingest", "บังคับให้ระบบสรุปความรู้ที่ได้ใหม่แล้วฝังลงสมองกล (RAG) ทันที", {}, t_force_ingest),
+    ("set_collect_mode", "เปิด/ปิดโหมดเก็บดาต้า (ผ่อนเกณฑ์ CEO ให้เข้าไม้บ่อยขึ้น เพื่อป้อนข้อมูลให้กลไกเรียนรู้)",
+     {"on": {"type": "boolean", "description": "true=เปิดโหมดเก็บดาต้า, false=กลับมาเข้มปกติ"}}, t_collect_mode),
 ]
 HANDLERS = {name: fn for name, _d, _s, fn in TOOLS}
 
