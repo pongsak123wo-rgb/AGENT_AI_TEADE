@@ -12,6 +12,7 @@ cerebras_cloud_sdk
 requests
 ddgs
 scikit-learn
+yfinance
 # Windows-only: direct MT5 data/execution on the VPS (auto-falls back to
 # the EA file bridge where it can't import/initialize, e.g. WDAC machines).
 MetaTrader5; platform_system == "Windows"
