@@ -49,12 +49,18 @@ from risk import RiskConfig, RiskManager
 
 from pathlib import Path
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 app = FastAPI()
 
 _frontend_dir = Path(__file__).resolve().parent.parent / "frontend"
 if _frontend_dir.exists():
-    app.mount("/ui", StaticFiles(directory=str(_frontend_dir), html=True), name="ui")
+    @app.get("/", response_class=FileResponse)
+    @app.get("/ui", response_class=FileResponse)
+    def serve_ui():
+        return FileResponse(_frontend_dir / "index.html")
+    app.mount("/static", StaticFiles(directory=str(_frontend_dir)), name="static")
+    app.mount("/ui_static", StaticFiles(directory=str(_frontend_dir)), name="ui_static")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
