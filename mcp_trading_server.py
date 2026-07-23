@@ -29,7 +29,7 @@ import urllib.error
 import urllib.request
 
 API = os.environ.get("TRADING_API", "http://localhost:8000")
-TIMEOUT = 20
+TIMEOUT = 600
 PROTOCOL_VERSION = "2024-11-05"
 
 
