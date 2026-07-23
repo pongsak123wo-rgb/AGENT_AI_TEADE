@@ -12,6 +12,11 @@ it, next to whatever the LLM said.
 """
 from __future__ import annotations
 
+# Elliott only carries weight when its wave count actually satisfies
+# Elliott's hard rules this well. Below it, the count is too loose to be
+# evidence and is reported as NEUTRAL instead of nudging the decision.
+ELLIOTT_MIN_FIT = 70.0
+
 
 def _stance_from_dir(direction: str | None, bias: str) -> str:
     if not direction or direction == "none":
@@ -75,6 +80,30 @@ def build(bias: str, indicators: dict, mtf: dict | None, risk: dict) -> dict:
     if ev and ev != "none":
         add(f"SMC {ev}", _stance_from_dir(smc.get("structure_direction"), bias),
             smc.get("structure_detail", "")[:60])
+
+    # --- Price action (pin bar / engulfing) ---
+    for key, label in (("pin_bar", "Pin bar"), ("engulfing", "Engulfing")):
+        pa = indicators.get(key)
+        if pa and pa != "none":
+            pa_dir = "bullish" if pa.startswith("bullish") else "bearish"
+            add(label, _stance_from_dir(pa_dir, bias), pa)
+
+    # --- Elliott Wave (only counts when the count actually fits the rules) ---
+    # Elliott is subjective: a low rule_fit_confidence means the wave count
+    # barely satisfies Elliott's own hard rules, so treating it as evidence
+    # would be reading noise. Below the threshold it's reported but stays
+    # NEUTRAL — it never pushes a trade for or against.
+    ew = indicators.get("elliott_wave") or {}
+    if ew.get("ready"):
+        fit = ew.get("rule_fit_confidence")
+        ew_dir = ew.get("direction")
+        pos = (ew.get("current_position") or "")[:45]
+        if fit is not None and fit >= ELLIOTT_MIN_FIT and ew_dir in ("up", "down"):
+            wave_dir = "bullish" if ew_dir == "up" else "bearish"
+            add("Elliott Wave", _stance_from_dir(wave_dir, bias), f"fit {fit}% · {ew_dir} · {pos}")
+        else:
+            add("Elliott Wave", "neutral",
+                f"fit {fit}% < {ELLIOTT_MIN_FIT}% — นับคลื่นไม่แม่นพอ ไม่นับน้ำหนัก")
 
     # --- ML probability ---
     ind = indicators

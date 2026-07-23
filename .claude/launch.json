@@ -6,13 +6,20 @@
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"],
       "cwd": "backend",
-      "port": 8000
+      "port": 8000,
+      "autoPort": false
     },
     {
       "name": "frontend",
       "runtimeExecutable": "python",
       "runtimeArgs": ["-m", "http.server", "5500"],
       "cwd": "frontend",
+      "port": 5500,
+      "autoPort": false
+    },
+    {
+      "name": "attach",
+      "url": "http://localhost:5500",
       "port": 5500
     }
   ]
