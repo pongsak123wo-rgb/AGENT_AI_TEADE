@@ -9,11 +9,18 @@ import io
 from pathlib import Path
 
 import chromadb
-import fitz  # pymupdf
-import pytesseract
-from PIL import Image
+try:
+    import fitz  # pymupdf
+except Exception:
+    fitz = None
 
-pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+try:
+    import pytesseract
+    from PIL import Image
+    pytesseract.pytesseract.tesseract_cmd = r"C:\Program Files\Tesseract-OCR\tesseract.exe"
+except Exception:
+    pytesseract = None
+    Image = None
 _TESSDATA_DIR = Path(__file__).parent / "tessdata"
 
 KNOWLEDGE_DIR = Path(__file__).parent / "knowledge"
