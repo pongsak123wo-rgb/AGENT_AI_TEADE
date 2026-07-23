@@ -697,7 +697,7 @@ if (bt2Btn) {
             <th>Win%</th><th>กำไรสุทธิ</th><th>ต้นทุน</th>
           </tr></thead><tbody>${body}</tbody></table>
         <p class="placeholder" style="font-size:9px;margin-top:8px;">
-          หักต้นทุนจริงแล้ว (spread + slippage + commission + swap) · correlation veto ${f.corr_blocked || 0} ครั้ง ·
+          หักต้นทุนจริงแล้ว (spread + slippage + swap · โบรกนี้ไม่มี commission) · correlation veto ${f.corr_blocked || 0} ครั้ง ·
           ชนเพดานไม้ ${f.cap_blocked || 0} ครั้ง · โซน ${f.engaged || 0} → เข้า ${f.entered || 0}
         </p>`;
       statusEl.textContent = `รันเสร็จ (${tf}, ${bars} แท่ง, สูงสุด ${conc} ไม้)`;

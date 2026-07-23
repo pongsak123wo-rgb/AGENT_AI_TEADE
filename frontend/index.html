@@ -95,7 +95,13 @@
       <label>Total open risk สูงสุด (%) <input id="risk-total-open" type="number" step="0.1" min="0.1"></label>
       <label>Daily loss limit (%) <input id="risk-daily" type="number" step="0.1" min="0.1"></label>
       <label>Max drawdown (%) <input id="risk-drawdown" type="number" step="0.1" min="0.1"></label>
-      <label>เปิดพร้อมกันสูงสุด (ไม้) <input id="risk-concurrent" type="number" step="1" min="1" max="20"></label>
+      <label>เปิดพร้อมกันสูงสุด
+        <select id="risk-concurrent">
+          <option value="5">5 ไม้</option>
+          <option value="6">6 ไม้</option>
+          <option value="7">7 ไม้</option>
+        </select>
+      </label>
       <button id="risk-save">บันทึก</button>
       <div class="risk-meter">
         <div class="meter-row"><span>Total open risk</span><span id="meter-open">0% / 0%</span></div>
@@ -184,7 +190,13 @@
             </select>
           </label>
           <label>จำนวนแท่งย้อนหลัง <input id="bt2-bars" type="number" value="800" step="100"></label>
-          <label>เปิดพร้อมกันสูงสุด <input id="bt2-concurrent" type="number" value="6" min="1" max="10"></label>
+          <label>เปิดพร้อมกันสูงสุด
+            <select id="bt2-concurrent">
+              <option value="5">5 ไม้</option>
+              <option value="6" selected>6 ไม้</option>
+              <option value="7">7 ไม้</option>
+            </select>
+          </label>
           <button id="bt2-run">รัน Backtest v2 ทุกสินทรัพย์</button>
           <p id="bt2-status" class="placeholder" style="margin-top:8px;">ยังไม่ได้รัน</p>
         </div>
@@ -333,6 +345,6 @@
   </div>
 
   <script src="office.js?v=7"></script>
-  <script src="app.js?v=13"></script>
+  <script src="app.js?v=14"></script>
 </body>
 </html>

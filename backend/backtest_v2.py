@@ -50,7 +50,10 @@ TZ = datetime.timezone(datetime.timedelta(hours=7))
 START_EQUITY = 10_000.0
 RISK_PER_TRADE_PCT = 0.5        # matches the live risk config
 MAX_CONCURRENT = 6              # 5-7 intended; hard cap like live
-COMMISSION_PER_LOT = 7.0        # round-turn, account currency
+# No commission line: this broker prices spread-only, confirmed against the
+# real executions the system logged (avg_commission = 0.0 on every symbol).
+# Cost is therefore the spread actually paid, plus slippage and financing —
+# i.e. only what really moves the balance.
 SLIPPAGE_SPREAD_FRAC = 0.25     # slippage modelled as a fraction of spread
 SWAP_PER_LOT_PER_DAY = -2.0     # financing drag on an overnight position
 
@@ -153,11 +156,10 @@ def _trade_costs(symbol: str, lot: float, spread: float, price: float, bars_held
         unit = 100_000.0
     # spread is paid on entry (and effectively again on exit) + slippage
     spread_cost = spread * unit * lot * (1.0 + SLIPPAGE_SPREAD_FRAC)
-    commission = COMMISSION_PER_LOT * lot
     mins = {"M5": 5, "M15": 15}.get(entry_tf, 15)
     days_held = (bars_held * mins) / (60 * 24)
     swap = abs(SWAP_PER_LOT_PER_DAY) * lot * days_held
-    return spread_cost + commission + swap
+    return spread_cost + swap
 
 
 def _prepare(symbol: str, hist: dict, entry_tf: str) -> dict | None:
