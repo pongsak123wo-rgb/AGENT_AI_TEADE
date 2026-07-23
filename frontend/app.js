@@ -881,6 +881,13 @@ const TH_MONTHS = ["มกราคม", "กุมภาพันธ์", "ม�
   "กรกฎาคม", "สิงหาคม", "กันยายน", "ตุลาคม", "พฤศจิกายน", "ธันวาคม"];
 
 function fmtR(v) { return `${v > 0 ? "+" : ""}${v.toFixed(2)}R`; }
+function fmtMoney(v) { return `${v > 0 ? "+" : ""}${v.toFixed(2)}`; }
+// Show real money when every trade that day has a P/L from MT5, else fall
+// back to R so older estimate-settled days still read sensibly.
+function dayValue(rec) {
+  return rec.has_money ? { text: fmtMoney(rec.net_profit), val: rec.net_profit }
+                       : { text: fmtR(rec.net_r), val: rec.net_r };
+}
 
 function renderCalendar() {
   const days = document.getElementById("cal-days");
@@ -907,10 +914,12 @@ function renderCalendar() {
   while (slots.length % 7 !== 0) slots.push(null);
 
   let monthR = 0, monthTrades = 0;
+  // Whether every day shown is measured in real money (else totals are in R)
+  let monthMoney = true;
   let html = "";
 
   for (let w = 0; w < slots.length / 7; w++) {
-    let weekR = 0, weekDays = 0;
+    let weekR = 0, weekDays = 0, weekMoney = true;
     for (let i = 0; i < 7; i++) {
       const d = slots[w * 7 + i];
       if (d === null) { html += `<div class="cal-cell empty"></div>`; continue; }
@@ -919,13 +928,15 @@ function renderCalendar() {
       let cls = "cal-cell";
       let body;
       if (rec) {
+        const dv = dayValue(rec);
         // green = net win, red = net loss, neutral "be" = traded but flat
-        cls += rec.net_r > 0.005 ? " win" : rec.net_r < -0.005 ? " loss" : " be";
+        cls += dv.val > 0.005 ? " win" : dv.val < -0.005 ? " loss" : " be";
         const sub = `W${rec.wins} L${rec.losses}${rec.breakeven ? " BE" + rec.breakeven : ""}`;
-        body = `<div class="cal-body"><div class="cal-r">${fmtR(rec.net_r)}</div>
+        body = `<div class="cal-body"><div class="cal-r">${dv.text}</div>
                   <div class="cal-sub">${sub}</div></div>`;
-        monthR += rec.net_r; monthTrades += rec.trades;
-        weekR += rec.net_r; weekDays++;
+        monthR += dv.val; monthTrades += rec.trades;
+        weekR += dv.val; weekDays++;
+        if (!rec.has_money) { monthMoney = false; weekMoney = false; }
       } else {
         body = `<div class="cal-body"><div class="cal-none">ไม่มีไม้</div></div>`;
       }
@@ -938,9 +949,10 @@ function renderCalendar() {
     }
     // weekly summary cell
     const wcls = weekR > 0 ? "win" : weekR < 0 ? "loss" : "";
+    const wTxt = weekDays ? (weekMoney ? fmtMoney(weekR) : fmtR(weekR)) : "0.00";
     html += `<div class="cal-week">
         <div class="cal-week-label">WEEKLY</div>
-        <div class="cal-week-r ${wcls}">${weekDays ? fmtR(weekR) : "0R"}</div>
+        <div class="cal-week-r ${wcls}">${wTxt}</div>
         <div class="cal-week-days">${weekDays} วัน</div>
       </div>`;
   }
@@ -948,7 +960,7 @@ function renderCalendar() {
 
   const cls = monthR > 0 ? "win" : monthR < 0 ? "loss" : "";
   totalBadge.className = "cal-total-badge " + cls;
-  totalBadge.textContent = `${fmtR(monthR)} · ${monthTrades} ไม้`;
+  totalBadge.textContent = `${monthMoney ? fmtMoney(monthR) : fmtR(monthR)} · ${monthTrades} ไม้`;
 }
 
 async function loadCalendar() {

@@ -721,15 +721,21 @@ def get_hourly_stats() -> list[dict]:
 
 
 def get_daily_pnl() -> list[dict]:
-    """Net R-multiple per calendar day (Thai time UTC+7) from closed trades —
-    the "how much +/- each day" a P/L calendar needs. R is used instead of
-    account currency because position lot sizes aren't stored per signal;
-    net R still shows which days won/lost and by how much in risk terms.
-    Returns [{date, net_r, wins, losses, breakeven, trades}] newest first."""
+    """Per-calendar-day (Thai time UTC+7) result from closed trades.
+
+    Reports BOTH:
+      • net_profit — real money from MT5's closed deals (commission+swap in)
+      • net_r      — R-multiple, for days whose trades predate real-P/L data
+
+    `has_money` says whether every trade that day carried a real P/L, so the
+    calendar can show actual currency and fall back to R only where the
+    money isn't known.
+    Returns newest day first.
+    """
     import datetime
     conn = _connect()
     rows = conn.execute(
-        "SELECT created_at, action, entry, sl, exit_price, status FROM signals "
+        "SELECT created_at, action, entry, sl, exit_price, status, profit FROM signals "
         "WHERE ticket IS NOT NULL AND status IN ('win','loss','breakeven') AND exit_price IS NOT NULL AND sl IS NOT NULL"
     ).fetchall()
     conn.close()
@@ -741,14 +747,19 @@ def get_daily_pnl() -> list[dict]:
         risk_dist = abs(row["entry"] - row["sl"])
         if risk_dist == 0:
             continue
-        pnl = (row["exit_price"] - row["entry"]) if row["action"] == "buy" else (row["entry"] - row["exit_price"])
-        r = pnl / risk_dist
+        move = (row["exit_price"] - row["entry"]) if row["action"] == "buy" else (row["entry"] - row["exit_price"])
+        r = move / risk_dist
         if abs(r) > MAX_R:
             continue
         d = datetime.datetime.fromtimestamp(row["created_at"], tz=tz).strftime("%Y-%m-%d")
-        b = daily.setdefault(d, {"date": d, "net_r": 0.0, "wins": 0, "losses": 0, "breakeven": 0, "trades": 0})
+        b = daily.setdefault(d, {"date": d, "net_r": 0.0, "net_profit": 0.0,
+                                 "wins": 0, "losses": 0, "breakeven": 0,
+                                 "trades": 0, "money_trades": 0})
         b["net_r"] += r
         b["trades"] += 1
+        if row["profit"] is not None:
+            b["net_profit"] += float(row["profit"])
+            b["money_trades"] += 1
         if row["status"] == "win":
             b["wins"] += 1
         elif row["status"] == "loss":
@@ -759,6 +770,8 @@ def get_daily_pnl() -> list[dict]:
     out = []
     for b in sorted(daily.values(), key=lambda x: x["date"], reverse=True):
         b["net_r"] = round(b["net_r"], 2)
+        b["net_profit"] = round(b["net_profit"], 2)
+        b["has_money"] = b["money_trades"] == b["trades"] and b["trades"] > 0
         out.append(b)
     return out
 
