@@ -9,9 +9,13 @@
 //+------------------------------------------------------------------+
 #property script_show_inputs
 
-input string SymbolsCSV = "EURUSD,GBPUSD,USDJPY,XAUUSD,US30,NAS100";
+// Must match the symbols the system actually trades (main.py SYMBOLS).
+// US30/NAS100 were dropped — this broker doesn't carry those exact names,
+// so they only ever produced empty series.
+input string SymbolsCSV = "EURUSD,GBPUSD,USDJPY,XAUUSD,EURJPY,GBPJPY";
 input int    H1Days     = 90;   // ~3 months of H1 bars
-input int    M1Days     = 14;   // shorter M1 window — finer resolution, kept short so the file stays a reasonable size
+input int    M1Days     = 30;   // M1 window — 30 days so backtest_v2 has enough
+                                // bars to resample M5/M15 across a useful period
 input string OutputFile = "mt5_history.json";
 
 string JsonEscape(string s)
