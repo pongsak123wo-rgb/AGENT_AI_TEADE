@@ -82,6 +82,14 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # Real net P/L in account currency, taken from MT5's closed-deal history
+    # (commission + swap included). NULL for signals settled by the older
+    # price-estimate fallback.
+    try:
+        conn.execute("ALTER TABLE signals ADD COLUMN profit REAL")
+    except sqlite3.OperationalError:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -173,6 +181,124 @@ def check_open_signals(current_prices: dict[str, float]) -> list[dict]:
                 (hit, time.time(), price, row["id"]),
             )
             settled.append({"id": row["id"], "symbol": row["symbol"], "action": row["action"], "result": hit})
+
+    conn.commit()
+    conn.close()
+    return settled
+
+
+def get_equity_curve() -> list[dict]:
+    """Cumulative realized P/L over closed trades, oldest→newest — the
+    equity curve. Uses the real MT5 `profit` when available, else falls
+    back to R-multiple × a nominal 1R so older estimate-settled trades
+    still contribute a shape."""
+    conn = _connect()
+    rows = conn.execute(
+        "SELECT id, symbol, action, closed_at, created_at, entry, sl, exit_price, status, profit "
+        "FROM signals WHERE ticket IS NOT NULL AND status IN ('win','loss','breakeven') "
+        "ORDER BY COALESCE(closed_at, created_at)"
+    ).fetchall()
+    conn.close()
+
+    curve, cum = [], 0.0
+    for r in rows:
+        if r["profit"] is not None:
+            pnl = float(r["profit"])
+        else:
+            # no real deal P/L — approximate from R so the curve isn't blank
+            risk = abs((r["entry"] or 0) - (r["sl"] or 0))
+            if risk and r["exit_price"] is not None:
+                move = (r["exit_price"] - r["entry"]) if r["action"] == "buy" else (r["entry"] - r["exit_price"])
+                pnl = max(-20.0, min(20.0, move / risk))  # in R, capped
+            else:
+                pnl = 0.0
+        cum += pnl
+        curve.append({
+            "id": r["id"], "symbol": r["symbol"], "action": r["action"],
+            "closed_at": r["closed_at"] or r["created_at"],
+            "pnl": round(pnl, 2), "cumulative": round(cum, 2),
+            "status": r["status"], "real": r["profit"] is not None,
+        })
+    return curve
+
+
+def get_trade_journal(limit: int = 50) -> list[dict]:
+    """Per-trade detail for the journal view: why it was entered, what the
+    levels were, and how it actually closed."""
+    conn = _connect()
+    rows = conn.execute(
+        "SELECT id, created_at, closed_at, symbol, action, entry, sl, tp, exit_price, status, "
+        "profit, risk_pct, rsi_state, ema_trend, structure_event, mtf_confluence, reason, ticket, "
+        "slippage, commission, swap "
+        "FROM signals WHERE ticket IS NOT NULL ORDER BY created_at DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    conn.close()
+
+    out = []
+    for r in rows:
+        d = dict(r)
+        risk = abs((d["entry"] or 0) - (d["sl"] or 0))
+        if risk and d["exit_price"] is not None:
+            move = (d["exit_price"] - d["entry"]) if d["action"] == "buy" else (d["entry"] - d["exit_price"])
+            d["r_multiple"] = round(max(-20.0, min(20.0, move / risk)), 2)
+        else:
+            d["r_multiple"] = None
+        out.append(d)
+    return out
+
+
+def get_open_tickets() -> list[int]:
+    """Tickets of signals still marked open — the set to ask MT5 about."""
+    conn = _connect()
+    rows = conn.execute(
+        "SELECT ticket FROM signals WHERE status = 'open' AND ticket IS NOT NULL"
+    ).fetchall()
+    conn.close()
+    return [r["ticket"] for r in rows]
+
+
+def settle_by_real_deals(close_info: dict) -> list[dict]:
+    """Settle open signals using REAL closed-deal data from MT5.
+
+    close_info: {ticket: {net_profit, exit_price, closed_at, ...}} from
+    mt5_direct.get_close_info(). Because MT5 reports the actual money the
+    position made or lost (commission and swap included), win/loss here is
+    fact, not the "last price vs entry" estimate the fallback below has to
+    use. Anything netting within ±BREAKEVEN_MONEY of zero settles as
+    breakeven so scratch trades don't inflate the win rate.
+
+    Returns the list of newly-settled signals.
+    """
+    if not close_info:
+        return []
+    BREAKEVEN_MONEY = 0.50  # account currency; below this = a scratch trade
+
+    conn = _connect()
+    rows = conn.execute(
+        "SELECT id, symbol, action, ticket FROM signals WHERE status = 'open' AND ticket IS NOT NULL"
+    ).fetchall()
+
+    settled = []
+    for row in rows:
+        info = close_info.get(row["ticket"])
+        if not info:
+            continue
+        net = info.get("net_profit", 0.0)
+        if net > BREAKEVEN_MONEY:
+            status = "win"
+        elif net < -BREAKEVEN_MONEY:
+            status = "loss"
+        else:
+            status = "breakeven"
+        conn.execute(
+            "UPDATE signals SET status = ?, closed_at = ?, exit_price = ?, profit = ? WHERE id = ?",
+            (status, info.get("closed_at", time.time()), info.get("exit_price"), net, row["id"]),
+        )
+        settled.append({
+            "id": row["id"], "symbol": row["symbol"], "action": row["action"],
+            "result": status, "profit": net, "source": "mt5_deal",
+        })
 
     conn.commit()
     conn.close()

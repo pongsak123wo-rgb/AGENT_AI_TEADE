@@ -972,6 +972,115 @@ document.addEventListener("DOMContentLoaded", () => {
 loadCalendar();
 setInterval(loadCalendar, 15000);
 
+// --- System monitor ---
+async function loadMonitor() {
+  const panel = document.getElementById("monitor-panel");
+  if (!panel) return;
+  try {
+    const m = await (await fetch(`${API}/monitor/status`)).json();
+    const dot = (ok) => ok ? '<span style="color:var(--green-bright)">●</span>' : '<span style="color:var(--red-bright)">●</span>';
+    const alerts = (m.alerts || []).length
+      ? `<div style="margin-top:8px;padding:8px;background:rgba(239,83,80,0.12);border:1px solid rgba(239,83,80,0.4);border-radius:8px;">
+           ${m.alerts.map(a => `<div style="font-size:10px;color:var(--red-bright);margin:2px 0;">⚠ ${a}</div>`).join("")}
+         </div>`
+      : `<div style="margin-top:8px;font-size:10px;color:var(--green-bright);">✓ ไม่มีปัญหา</div>`;
+    panel.innerHTML = `
+      <div class="meter-row"><span>สถานะรวม</span><span>${dot(m.ok)} ${m.ok ? "ปกติ" : "มีปัญหา"}</span></div>
+      <div class="meter-row"><span>Cycle ล่าสุด</span><span>${m.cycle.age_sec !== null ? m.cycle.age_sec + "s ที่แล้ว" : "-"} (${m.cycle.last_symbol || "-"})</span></div>
+      <div class="meter-row"><span>Cycle ทั้งหมด</span><span>${m.cycle.total}</span></div>
+      <div class="meter-row"><span>MT5</span><span>${dot(m.mt5.connected)} ${m.mt5.source || "-"} ${m.mt5.is_demo ? "(demo)" : ""}</span></div>
+      <div class="meter-row"><span>LLM ใช้ได้</span><span>${(m.llm.usable || []).join(", ") || "ไม่มี"}</span></div>
+      ${m.cycle.consecutive_errors ? `<div class="meter-row"><span>Error ติดกัน</span><span style="color:var(--red-bright)">${m.cycle.consecutive_errors}</span></div>` : ""}
+      ${alerts}`;
+  } catch (e) {
+    panel.innerHTML = '<p class="placeholder">เชื่อมต่อ backend ไม่ได้</p>';
+  }
+}
+loadMonitor();
+setInterval(loadMonitor, 5000);
+
+// --- Equity curve (inline SVG, no external lib) ---
+async function loadEquityCurve() {
+  const panel = document.getElementById("equity-panel");
+  if (!panel) return;
+  try {
+    const data = await (await fetch(`${API}/signals/equity-curve`)).json();
+    if (!data.length) { panel.innerHTML = '<p class="placeholder">ยังไม่มีไม้ที่ปิด</p>'; return; }
+
+    const W = 460, H = 200, PAD = 28;
+    const vals = data.map(d => d.cumulative);
+    const min = Math.min(0, ...vals), max = Math.max(0, ...vals);
+    const range = (max - min) || 1;
+    const x = (i) => PAD + (i / Math.max(1, data.length - 1)) * (W - PAD * 2);
+    const y = (v) => H - PAD - ((v - min) / range) * (H - PAD * 2);
+
+    const pts = data.map((d, i) => `${x(i)},${y(d.cumulative)}`).join(" ");
+    const zeroY = y(0);
+    const last = data[data.length - 1].cumulative;
+    const col = last >= 0 ? "#0ecb81" : "#f6465d";
+    const area = `${PAD},${zeroY} ${pts} ${x(data.length - 1)},${zeroY}`;
+
+    panel.innerHTML = `
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        <span style="font-size:11px;color:var(--text-dim);">${data.length} ไม้ที่ปิด</span>
+        <span style="font-family:'JetBrains Mono',monospace;font-weight:700;color:${col};">
+          ${last >= 0 ? "+" : ""}${last.toFixed(2)}
+        </span>
+      </div>
+      <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;">
+        <line x1="${PAD}" y1="${zeroY}" x2="${W - PAD}" y2="${zeroY}" stroke="#3a4152" stroke-dasharray="3,3"/>
+        <polygon points="${area}" fill="${col}" opacity="0.12"/>
+        <polyline points="${pts}" fill="none" stroke="${col}" stroke-width="2"/>
+        ${data.map((d, i) => `<circle cx="${x(i)}" cy="${y(d.cumulative)}" r="2.5" fill="${d.pnl >= 0 ? '#0ecb81' : '#f6465d'}"><title>${d.symbol} ${d.action} ${d.pnl >= 0 ? '+' : ''}${d.pnl}</title></circle>`).join("")}
+        <text x="${PAD}" y="${H - 6}" fill="#787b86" font-size="9">เริ่ม</text>
+        <text x="${W - PAD}" y="${H - 6}" fill="#787b86" font-size="9" text-anchor="end">ล่าสุด</text>
+      </svg>
+      <p class="placeholder" style="font-size:9px;margin-top:6px;">
+        ${data.some(d => d.real) ? "P/L จริงจาก MT5" : "ประมาณจาก R (ยังไม่มี deal จริง)"}
+      </p>`;
+  } catch (e) {
+    panel.innerHTML = '<p class="placeholder">เชื่อมต่อ backend ไม่ได้</p>';
+  }
+}
+
+// --- Trade journal ---
+async function loadJournal() {
+  const panel = document.getElementById("journal-panel");
+  if (!panel) return;
+  try {
+    const rows = await (await fetch(`${API}/signals/journal?limit=50`)).json();
+    if (!rows.length) { panel.innerHTML = '<p class="placeholder">ยังไม่มีไม้</p>'; return; }
+    const fmtT = (t) => t ? new Date(t * 1000).toLocaleString("th-TH", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "-";
+    const stCol = { win: "var(--green-bright)", loss: "var(--red-bright)", breakeven: "var(--amber)", open: "var(--blue)" };
+    panel.innerHTML = `
+      <table style="width:100%;border-collapse:collapse;font-size:9px;min-width:640px;">
+        <thead><tr style="color:#888;border-bottom:1px solid #444;">
+          <th style="text-align:left;padding:4px;">เวลา</th><th>Symbol</th><th>ทิศ</th>
+          <th>Entry</th><th>SL</th><th>TP</th><th>ออก</th><th>ผล</th><th>R</th><th>P/L</th><th style="text-align:left;">เหตุผล</th>
+        </tr></thead><tbody>` +
+      rows.map(r => `
+        <tr style="border-bottom:1px solid #222;">
+          <td style="padding:4px;color:var(--text-dim);">${fmtT(r.created_at)}</td>
+          <td style="text-align:center;">${r.symbol}</td>
+          <td style="text-align:center;color:${r.action === 'buy' ? 'var(--green)' : 'var(--red)'}">${r.action.toUpperCase()}</td>
+          <td style="text-align:center;">${r.entry}</td>
+          <td style="text-align:center;color:#888;">${r.sl}</td>
+          <td style="text-align:center;color:#888;">${r.tp}</td>
+          <td style="text-align:center;">${r.exit_price ?? "-"}</td>
+          <td style="text-align:center;color:${stCol[r.status] || '#888'}">${r.status}</td>
+          <td style="text-align:center;">${r.r_multiple !== null ? r.r_multiple + "R" : "-"}</td>
+          <td style="text-align:center;color:${(r.profit ?? 0) >= 0 ? 'var(--green-bright)' : 'var(--red-bright)'}">${r.profit !== null ? (r.profit >= 0 ? "+" : "") + r.profit : "-"}</td>
+          <td style="padding:4px;color:var(--text-dim);max-width:220px;">${(r.reason || "").slice(0, 90)}</td>
+        </tr>`).join("") + `</tbody></table>`;
+  } catch (e) {
+    panel.innerHTML = '<p class="placeholder">เชื่อมต่อ backend ไม่ได้</p>';
+  }
+}
+loadEquityCurve();
+loadJournal();
+setInterval(loadEquityCurve, 15000);
+setInterval(loadJournal, 15000);
+
 // --- Expectancy รายสินทรัพย์ ---
 async function loadSymbolExpectancy() {
   const panel = document.getElementById("sym-expectancy-panel");

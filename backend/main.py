@@ -37,6 +37,8 @@ import pattern_disable
 import research_log
 import session_summary
 import signal_log
+import monitor
+import mt5_direct
 import mtf_engine
 import smc_analysis
 import trading_hours
@@ -279,13 +281,32 @@ async def run_cycle():
                 AgentMessage(agent="ceo", text="ไม่ได้ส่งออเดอร์จริง — ไม่นับเป็นไม้ (เก็บสถิติเฉพาะไม้ที่เข้า MT5 จริง)", kind="info")
             )
 
-    settled = signal_log.check_open_signals(data_agent.prices)
+    # Settlement, best source first:
+    # 1) REAL closed-deal P/L from MT5 (exact money, commission+swap included)
+    # 2) price hit SL/TP as recorded
+    # 3) ticket vanished from MT5 → estimate from last price (last resort)
+    settled = []
+    open_tickets = signal_log.get_open_tickets()
+    if open_tickets:
+        try:
+            close_info = mt5_direct.get_close_info(open_tickets)
+            settled += signal_log.settle_by_real_deals(close_info)
+        except Exception:
+            pass
+    settled += signal_log.check_open_signals(data_agent.prices)
     if live:
         live_tickets = {p["ticket"] for p in live["positions"]}
         settled += signal_log.check_settled_by_ticket(data_agent.prices, live_tickets)
     for s in settled:
         risk_manager.close_position(s["symbol"], s["action"])
-        result_th = "ชนะ (TP)" if s["result"] == "win" else "แตะ SL"
+        if s["result"] == "win":
+            result_th = "ชนะ"
+        elif s["result"] == "loss":
+            result_th = "แพ้"
+        else:
+            result_th = "เสมอ (breakeven)"
+        if s.get("profit") is not None:
+            result_th += f" · P/L จริง {s['profit']:+.2f}"
         await broadcast(
             AgentMessage(
                 agent="ceo",
@@ -319,7 +340,9 @@ async def cycle_loop():
     while True:
         try:
             await run_cycle()
+            monitor.record_cycle(symbol_cycle[(cycle_index - 1) % len(symbol_cycle)])
         except Exception as e:
+            monitor.record_error(repr(e))
             print(f"[cycle_loop] error (continuing): {e!r}")
         await asyncio.sleep(5)
 
@@ -424,6 +447,11 @@ def get_cost_guard_status():
     return cost_guard.status()
 
 
+@app.get("/monitor/status")
+def get_monitor_status():
+    return monitor.status()
+
+
 @app.get("/backtest/run")
 def run_backtest(symbol: str = "EURUSD", period: str = "60d", interval: str = "1h", source: str = "yahoo"):
     return backtest_engine.run_backtest(symbol, period=period, interval=interval, source=source)
@@ -497,6 +525,16 @@ def get_hourly_stats():
 @app.get("/signals/daily-pnl")
 def get_daily_pnl():
     return signal_log.get_daily_pnl()
+
+
+@app.get("/signals/equity-curve")
+def get_equity_curve():
+    return signal_log.get_equity_curve()
+
+
+@app.get("/signals/journal")
+def get_trade_journal(limit: int = 50):
+    return signal_log.get_trade_journal(limit=limit)
 
 
 @app.get("/signals/symbol-expectancy")

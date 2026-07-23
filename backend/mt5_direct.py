@@ -146,6 +146,52 @@ def read_snapshot() -> dict | None:
         return None
 
 
+def get_close_info(tickets: list[int], lookback_days: int = 7) -> dict:
+    """Real close data straight from MT5's deal history for the given
+    position tickets: {ticket: {profit, exit_price, closed_at, commission,
+    swap}}.
+
+    This replaces guessing a win/loss from "last known price vs entry".
+    MT5 knows exactly what each position closed at and what it actually
+    made or lost (including commission/swap), so win/loss, expectancy and
+    the P/L calendar can be built from real money instead of an estimate.
+    """
+    if not _load() or not tickets:
+        return {}
+    try:
+        import datetime
+        to = datetime.datetime.now() + datetime.timedelta(days=1)
+        frm = datetime.datetime.now() - datetime.timedelta(days=lookback_days)
+        deals = _mt5.history_deals_get(frm, to)
+        if deals is None:
+            return {}
+
+        wanted = set(tickets)
+        out: dict[int, dict] = {}
+        for d in deals:
+            pos = int(getattr(d, "position_id", 0) or 0)
+            if pos not in wanted:
+                continue
+            # DEAL_ENTRY_OUT (1) / OUT_BY (2) = the closing side of a position
+            if int(getattr(d, "entry", 0)) not in (1, 2):
+                continue
+            rec = out.setdefault(pos, {"profit": 0.0, "commission": 0.0, "swap": 0.0,
+                                       "exit_price": float(d.price), "closed_at": float(d.time)})
+            rec["profit"] += float(d.profit)
+            rec["commission"] += float(getattr(d, "commission", 0.0) or 0.0)
+            rec["swap"] += float(getattr(d, "swap", 0.0) or 0.0)
+            # keep the latest close price/time if a position closed in parts
+            if float(d.time) >= rec["closed_at"]:
+                rec["exit_price"] = float(d.price)
+                rec["closed_at"] = float(d.time)
+        # net profit = gross + commission + swap (both are negative costs)
+        for rec in out.values():
+            rec["net_profit"] = round(rec["profit"] + rec["commission"] + rec["swap"], 2)
+        return out
+    except Exception:
+        return {}
+
+
 def _lot_for_risk(sym: str, risk_money: float, sl_distance: float) -> float:
     """Convert a risk-in-account-currency into a lot size using the
     symbol's tick value/size. Clamped to the broker's volume min/max/step."""

@@ -46,6 +46,7 @@
     <button class="tab-btn" data-tab="tab-backtest">แบทเทส</button>
     <button class="tab-btn" data-tab="tab-analysis">วิเคราะห์ไม้</button>
     <button class="tab-btn" data-tab="tab-calendar">ปฏิทิน P/L</button>
+    <button class="tab-btn" data-tab="tab-journal">สมุดเทรด</button>
   </div>
 
   <div class="tab-panel active" id="tab-chat">
@@ -95,6 +96,11 @@
         <div class="meter-bar"><div id="meter-open-bar" class="meter-fill"></div></div>
         <div class="meter-row"><span>Daily loss</span><span id="meter-daily">0% / 0%</span></div>
         <div class="meter-bar"><div id="meter-daily-bar" class="meter-fill daily"></div></div>
+      </div>
+
+      <h2 style="margin-top:20px;">🩺 สถานะระบบ (Monitor)</h2>
+      <div class="winrate-panel" id="monitor-panel" style="text-align:left;">
+        <p class="placeholder">กำลังโหลด...</p>
       </div>
 
       <h2 style="margin-top:20px;">Kill Switch / Health</h2>
@@ -264,6 +270,23 @@
     </div>
   </div>
 
+  <div class="tab-panel" id="tab-journal">
+    <div class="results-grid">
+      <div class="results-col" style="max-width:560px;">
+        <h2>Equity Curve (กำไรสะสมจากไม้ที่ปิดจริง)</h2>
+        <div class="winrate-panel" id="equity-panel" style="text-align:left;">
+          <p class="placeholder">ยังไม่มีไม้ที่ปิด</p>
+        </div>
+      </div>
+      <div class="results-col" style="max-width:100%; flex:2;">
+        <h2>สมุดเทรด — รายละเอียดแต่ละไม้</h2>
+        <div class="winrate-panel" id="journal-panel" style="text-align:left; overflow-x:auto; max-height:560px; overflow-y:auto;">
+          <p class="placeholder">ยังไม่มีไม้</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <div class="modal-overlay" id="order-modal">
     <div class="modal-box">
       <h2>CEO ส่งคำสั่งเข้า MT5 อัตโนมัติ (DEMO)</h2>
@@ -287,6 +310,6 @@
   </div>
 
   <script src="office.js?v=7"></script>
-  <script src="app.js?v=8"></script>
+  <script src="app.js?v=9"></script>
 </body>
 </html>
