@@ -739,7 +739,7 @@ function wrColor(pct) {
 
 // All symbols the system trades — so the by-symbol table shows every one,
 // even those with no closed trades yet (0/0), not just the ones that traded.
-let ALL_SYMBOLS = [];
+let ALL_SYMBOLS = ["BTCUSD", "EURJPY", "EURUSD", "GBPJPY", "GBPUSD", "USDJPY", "XAUUSD"];
 async function loadSymbols() {
   try {
     const res = await fetch(`${API}/symbols`);
