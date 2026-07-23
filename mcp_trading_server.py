@@ -56,6 +56,24 @@ def _text(obj) -> dict:
     return {"content": [{"type": "text", "text": body}]}
 
 
+def _post(path: str, data: dict) -> dict | list:
+    """POST to a backend endpoint, returning parsed JSON or an error dict."""
+    url = f"{API}{path}"
+    req = urllib.request.Request(url, data=json.dumps(data).encode("utf-8"), method="POST")
+    req.add_header("Accept", "application/json")
+    req.add_header("Content-Type", "application/json")
+    token = os.environ.get("DASHBOARD_PASSWORD")
+    if token:
+        req.add_header("X-Auth-Token", token)
+    try:
+        with urllib.request.urlopen(req, timeout=TIMEOUT) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except urllib.error.URLError as e:
+        return {"error": f"เชื่อมต่อ backend ไม่ได้ ({url}): {e}"}
+    except Exception as e:
+        return {"error": f"{type(e).__name__}: {e}"}
+
+
 # ---------------------------------------------------------------- tools
 def t_system_status(_args: dict) -> dict:
     """Overall health: cycle heartbeat, MT5 link, LLM availability, alerts."""
@@ -178,6 +196,19 @@ def t_cost(_args: dict) -> dict:
                   "llm_circuit_breaker": _get("/llm-circuit-breaker/status")})
 
 
+def t_mt5_history_status(_args: dict) -> dict:
+    """Check if MT5 history data (HistoryExporter.mq5) is available for backtesting."""
+    return _text(_get("/backtest/mt5-history-status"))
+
+
+def t_run_backtest_v2(args: dict) -> dict:
+    """Run Backtest v2 on historical MT5 data with live logic (zones, multi-TF)."""
+    import urllib.parse
+    qs = urllib.parse.urlencode({k: v for k, v in args.items() if v is not None})
+    path = f"/backtest/v2?{qs}" if qs else "/backtest/v2"
+    return _text(_post(path, {}))
+
+
 TOOLS = [
     ("get_system_status", "สถานะระบบโดยรวม (cycle, MT5, LLM, alert, บัญชี)", {}, t_system_status),
     ("get_watched_zones", "โซนที่แต่ละสินทรัพย์เฝ้าอยู่ + เทรน multi-TF + แตะโซนหรือยัง",
@@ -190,6 +221,14 @@ TOOLS = [
      {"limit": {"type": "integer", "description": "จำนวนข้อความ (ค่าเริ่มต้น 30)"}}, t_agent_feed),
     ("diagnose_no_trade", "วิเคราะห์ว่าทำไมตอนนี้ยังไม่เข้าไม้", {}, t_why_no_trade),
     ("get_llm_cost", "ค่าใช้จ่าย Gemini เทียบงบเดือน + สถานะ provider", {}, t_cost),
+    ("get_mt5_history_status", "เช็คสถานะข้อมูล history ที่ได้จาก HistoryExporter.mq5", {}, t_mt5_history_status),
+    ("run_backtest_v2", "รันระบบ Backtest v2 (จำลอง trade เสมือนจริงจากข้อมูล MT5)",
+     {
+         "entry_tf": {"type": "string", "description": "Timeframe สำหรับเข้าออเดอร์ (M5 หรือ M15)"},
+         "max_bars": {"type": "integer", "description": "จำนวนแท่งเทียนย้อนหลัง (ค่าเริ่มต้น 800)"},
+         "max_concurrent": {"type": "integer", "description": "จำนวนไม้เปิดพร้อมกันสูงสุด (ค่าเริ่มต้น 6)"},
+         "symbol": {"type": "string", "description": "ระบุชื่อคู่เงินถ้าต้องการเทสแค่ตัวเดียว (เช่น XAUUSD)"}
+     }, t_run_backtest_v2),
 ]
 HANDLERS = {name: fn for name, _d, _s, fn in TOOLS}
 
