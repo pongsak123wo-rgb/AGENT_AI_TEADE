@@ -931,6 +931,43 @@ async function loadZones() {
 loadZones();
 setInterval(loadZones, 4000);
 
+// --- COT: large-speculator positioning (weekly, from CFTC) ---
+async function loadCot() {
+  const panel = document.getElementById("cot-panel");
+  if (!panel) return;
+  try {
+    const d = await (await fetch(`${API}/cot/status`)).json();
+    const syms = Object.entries(d.symbols || {});
+    if (!syms.length) { panel.innerHTML = '<p class="placeholder">ยังไม่มีข้อมูล COT</p>'; return; }
+    const col = (b) => b === "bullish" ? "var(--green-bright)" : b === "bearish" ? "var(--red-bright)" : "var(--text-dim)";
+    const th = { bullish: "ขึ้น", bearish: "ลง", neutral: "กลางๆ" };
+    const rows = syms.map(([sym, c]) => {
+      if (!c.available) return `<div class="meter-row"><span>${sym}</span><span class="placeholder">-</span></div>`;
+      // bar showing how far the score leans (-1..+1 clamped to +-0.6 for display)
+      const pct = Math.min(100, Math.abs(c.score) / 0.6 * 100);
+      const side = c.score >= 0 ? "left:50%" : `right:50%`;
+      return `
+        <div class="meter-row" style="margin-bottom:2px;">
+          <span>${sym} <span style="color:#5a606e;font-size:9px;">${c.trend}</span></span>
+          <span style="color:${col(c.bias)}">${th[c.bias]} ${c.score >= 0 ? "+" : ""}${c.score.toFixed(3)}</span>
+        </div>
+        <div style="position:relative;height:5px;background:var(--bg-elev);border-radius:3px;margin-bottom:7px;">
+          <div style="position:absolute;top:0;bottom:0;left:50%;width:1px;background:#3a4152;"></div>
+          <div style="position:absolute;top:0;bottom:0;${side};width:${pct / 2}%;background:${col(c.bias)};border-radius:3px;"></div>
+        </div>`;
+    }).join("");
+    const date = syms.find(([, c]) => c.available)?.[1]?.date || "-";
+    panel.innerHTML = rows +
+      `<p class="placeholder" style="font-size:9px;margin-top:8px;">
+         ข้อมูล ${date} · CFTC ออกทุกศุกร์ (ช้า ~3 วัน) — ใช้เป็นเข็มทิศภาพใหญ่ ไม่ใช่สัญญาณเข้าไม้
+       </p>`;
+  } catch (e) {
+    panel.innerHTML = '<p class="placeholder">เชื่อมต่อ backend ไม่ได้</p>';
+  }
+}
+loadCot();
+setInterval(loadCot, 60 * 60 * 1000);   // weekly data — hourly refresh is plenty
+
 // --- P/L Calendar (trading-journal style: 7 days + WEEKLY column) ---
 let calPnlMap = {};   // "YYYY-MM-DD" -> {net_r, wins, losses, trades}
 let calMonth = new Date();  // currently displayed month

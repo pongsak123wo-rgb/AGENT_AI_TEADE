@@ -207,7 +207,7 @@ async def run_cycle():
     # Transparent, code-computed factor sheet for this decision — never a
     # pure LLM black box. Built from the real numbers, deterministic.
     if decision["action"] != "no_trade":
-        audit = decision_audit.build(technical["bias"], indicators, mtf, risk)
+        audit = decision_audit.build(technical["bias"], indicators, mtf, risk, symbol=symbol)
         decision["audit"] = audit
         factor_lines = " | ".join(
             f"{'✅' if f['stance'] == 'for' else '❌' if f['stance'] == 'against' else '➖'} {f['name']}: {f['detail']}"
@@ -470,6 +470,13 @@ def get_cost_guard_status():
 @app.get("/monitor/status")
 def get_monitor_status():
     return monitor.status()
+
+
+@app.get("/cot/status")
+def get_cot_status():
+    """Large-speculator positioning per symbol from the CFTC's weekly COT."""
+    import cot_report
+    return cot_report.status()
 
 
 @app.get("/backtest/run")

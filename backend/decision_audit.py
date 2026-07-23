@@ -27,7 +27,7 @@ def _stance_from_dir(direction: str | None, bias: str) -> str:
     return "for" if direction == want else "against"
 
 
-def build(bias: str, indicators: dict, mtf: dict | None, risk: dict) -> dict:
+def build(bias: str, indicators: dict, mtf: dict | None, risk: dict, symbol: str | None = None) -> dict:
     """Returns {factors: [{name, stance, detail}], score, summary}."""
     factors: list[dict] = []
 
@@ -110,6 +110,21 @@ def build(bias: str, indicators: dict, mtf: dict | None, risk: dict) -> dict:
     ml = ind.get("ml_prob_buy") if bias == "buy" else ind.get("ml_prob_sell")
     if ml is not None:
         add("ML win prob", "for" if ml >= 50 else "against", f"{ml}%")
+
+    # --- COT: where large speculators are actually positioned ---
+    # The only factor here that isn't derived from price history, so it's
+    # worth its own line even though it's weekly/lagged.
+    if symbol:
+        try:
+            import cot_report
+            c = cot_report.get_bias(symbol)
+            if c.get("available") and c["bias"] != "neutral":
+                add("COT รายใหญ่", _stance_from_dir(c["bias"], bias),
+                    f"{c['bias']} score {c['score']:+.3f} ({c['trend']}, {c['date']})")
+            elif c.get("available"):
+                add("COT รายใหญ่", "neutral", f"ไม่เอียงชัด (score {c['score']:+.3f})")
+        except Exception:
+            pass
 
     # --- Risk verdict ---
     add("Risk", "for" if risk.get("approved") else "against", (risk.get("reason") or "")[:60])
