@@ -292,8 +292,21 @@ def settle_by_real_deals(close_info: dict, live_tickets: set | None = None) -> l
         if not info:
             continue
         net = info.get("net_profit", 0.0)
+        exit_p = info.get("exit_price") or 0.0
+        entry_p = row.get("entry") or 0.0
+        tp_p = row.get("tp") or 0.0
+
+        # Require price to reach >= 75% of TP distance to count as a real "WIN"
+        # Small profits from trailing stop or early closes settle as "breakeven"
+        # so they don't inflate the win rate with incomplete setups.
+        tp_dist = abs(tp_p - entry_p) if (tp_p and entry_p) else 0.0
+        reached_dist = abs(exit_p - entry_p) if (exit_p and entry_p) else 0.0
+
         if net > BREAKEVEN_MONEY:
-            status = "win"
+            if tp_dist > 0 and reached_dist >= (tp_dist * 0.75):
+                status = "win"
+            else:
+                status = "breakeven"
         elif net < -BREAKEVEN_MONEY:
             status = "loss"
         else:
@@ -313,23 +326,6 @@ def settle_by_real_deals(close_info: dict, live_tickets: set | None = None) -> l
 
 
 def check_settled_by_ticket(current_prices: dict[str, float], live_tickets: set[int]) -> list[dict]:
-    """Fallback settlement: for open signals with a known ticket that is
-    no longer in MT5's live position list, the position closed for some
-    reason check_open_signals() can't see — usually because the EA's
-    partial-close/breakeven/trailing management moved the real SL/TP
-    away from the values recorded at entry, so price comparing against
-    the STALE recorded sl/tp never matches. Win/loss here is approximated
-    from the last known price vs entry (not the exact fill), since this
-    bridge has no access to MT5's closed-deal history.
-
-    A trailing-stop exit can close right at (or barely past) breakeven —
-    that is NOT the same claim as "hit full TP" and must not be counted
-    as a "win" alongside trades that did, or win_rate_pct quietly starts
-    meaning "closed with >=0 profit" instead of "the setup worked" and
-    looks better than it should. Anything within BREAKEVEN_BAND_PCT of
-    entry settles as "breakeven" instead — excluded from win_rate_pct
-    (get_stats() only sums win+loss for `closed`).
-    """
     BREAKEVEN_BAND_PCT = 0.0005  # 0.05% of entry price
 
     conn = _connect()
@@ -345,13 +341,19 @@ def check_settled_by_ticket(current_prices: dict[str, float], live_tickets: set[
             continue
 
         entry = row["entry"]
+        tp_p = row.get("tp") or 0.0
+        tp_dist = abs(tp_p - entry) if (tp_p and entry) else 0.0
+        reached_dist = abs(price - entry)
+
         band = abs(entry) * BREAKEVEN_BAND_PCT
         if abs(price - entry) <= band:
             hit = "breakeven"
         elif row["action"] == "buy":
-            hit = "win" if price > entry else "loss"
+            is_pos = price > entry
+            hit = "win" if (is_pos and tp_dist > 0 and reached_dist >= (tp_dist * 0.75)) else ("breakeven" if is_pos else "loss")
         else:
-            hit = "win" if price < entry else "loss"
+            is_pos = price < entry
+            hit = "win" if (is_pos and tp_dist > 0 and reached_dist >= (tp_dist * 0.75)) else ("breakeven" if is_pos else "loss")
 
         conn.execute(
             "UPDATE signals SET status = ?, closed_at = ?, exit_price = ? WHERE id = ?",
