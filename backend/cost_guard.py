@@ -44,13 +44,20 @@ def _this_month() -> str:
     return datetime.datetime.now().strftime("%Y-%m")
 
 
+def _today() -> str:
+    return datetime.datetime.now().strftime("%Y-%m-%d")
+
+
 def _load() -> dict:
     try:
         d = json.loads(_STATE_PATH.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         d = {}
     if d.get("month") != _this_month():
-        d = {"month": _this_month(), "spent_thb": 0.0, "calls": 0}
+        d = {"month": _this_month(), "spent_thb": 0.0, "calls": 0, "today_date": _today(), "today_spent_thb": 0.0}
+    if d.get("today_date") != _today():
+        d["today_date"] = _today()
+        d["today_spent_thb"] = 0.0
     return d
 
 
@@ -62,9 +69,11 @@ def _save(d: dict):
 
 
 def can_spend() -> bool:
-    """True if this month's estimated Gemini spend is still under budget."""
+    """True if both daily spend (< 10 THB) and monthly spend (< 350 THB) are under budget."""
     d = _load()
-    return d["spent_thb"] < _budget_thb()
+    daily_budget = float(os.environ.get("GEMINI_DAILY_BUDGET_THB", "10.0"))
+    monthly_budget = float(os.environ.get("GEMINI_MONTHLY_BUDGET_THB", "350.0"))
+    return d.get("today_spent_thb", 0.0) < daily_budget and d.get("spent_thb", 0.0) < monthly_budget
 
 
 def estimate_tokens(text: str) -> int:
@@ -72,18 +81,17 @@ def estimate_tokens(text: str) -> int:
 
 
 def record(in_tokens: int, out_tokens: int):
-    """Add one Gemini call's estimated cost to this month's running total."""
+    """Add one Gemini call's estimated cost to today's and this month's running total."""
     d = _load()
     cost_usd = in_tokens * IN_PRICE_PER_TOKEN + out_tokens * OUT_PRICE_PER_TOKEN
-    d["spent_thb"] = round(d["spent_thb"] + cost_usd * USD_TO_THB, 4)
+    cost_thb = round(cost_usd * USD_TO_THB, 4)
+    d["spent_thb"] = round(d.get("spent_thb", 0.0) + cost_thb, 4)
+    d["today_spent_thb"] = round(d.get("today_spent_thb", 0.0) + cost_thb, 4)
     d["calls"] = d.get("calls", 0) + 1
     _save(d)
 
 
 def sync_spent(real_thb: float):
-    """Force this month's running total to a known figure — used to align
-    the guard with Google's actual invoice when the estimate has drifted, so
-    the cap reflects real spend instead of the under/over-count."""
     d = _load()
     d["spent_thb"] = round(float(real_thb), 2)
     _save(d)
@@ -92,13 +100,17 @@ def sync_spent(real_thb: float):
 
 def status() -> dict:
     d = _load()
-    budget = _budget_thb()
+    daily_b = float(os.environ.get("GEMINI_DAILY_BUDGET_THB", "10.0"))
+    monthly_b = float(os.environ.get("GEMINI_MONTHLY_BUDGET_THB", "350.0"))
     return {
         "month": d["month"],
+        "today_date": d.get("today_date", _today()),
+        "today_spent_thb": round(d.get("today_spent_thb", 0.0), 2),
+        "daily_budget_thb": daily_b,
         "spent_thb": round(d["spent_thb"], 2),
-        "budget_thb": budget,
-        "remaining_thb": round(budget - d["spent_thb"], 2),
+        "monthly_budget_thb": monthly_b,
+        "remaining_thb": round(monthly_b - d["spent_thb"], 2),
         "calls": d.get("calls", 0),
-        "over_budget": d["spent_thb"] >= budget,
-        "used_pct": round(d["spent_thb"] / budget * 100, 1) if budget else 0,
+        "over_budget": d.get("today_spent_thb", 0.0) >= daily_b or d["spent_thb"] >= monthly_b,
+        "used_pct": round(d["spent_thb"] / monthly_b * 100, 1) if monthly_b else 0,
     }
