@@ -10,7 +10,12 @@ let authToken = localStorage.getItem(AUTH_KEY) || "";
 const _origFetch = window.fetch.bind(window);
 window.fetch = (url, opts = {}) => {
   if (typeof url === "string" && url.startsWith(API)) {
-    opts.headers = { ...(opts.headers || {}), "X-Auth-Token": authToken };
+    const t = authToken || localStorage.getItem(AUTH_KEY) || localStorage.getItem("dashboard_token") || "";
+    opts.headers = {
+      ...(opts.headers || {}),
+      "X-Auth-Token": t,
+      "X-Dashboard-Token": t
+    };
   }
   return _origFetch(url, opts);
 };
