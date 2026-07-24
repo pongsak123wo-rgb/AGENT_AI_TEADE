@@ -1021,8 +1021,10 @@ function fmtMoney(v) { return `${v > 0 ? "+" : ""}${v.toFixed(2)}`; }
 // Show real money when every trade that day has a P/L from MT5, else fall
 // back to R so older estimate-settled days still read sensibly.
 function dayValue(rec) {
-  return rec.has_money ? { text: fmtMoney(rec.net_profit), val: rec.net_profit }
-                       : { text: fmtR(rec.net_r), val: rec.net_r };
+  if (rec.has_money || rec.net_profit !== 0 || (rec.money_trades && rec.money_trades > 0)) {
+    return { text: fmtMoney(rec.net_profit), val: rec.net_profit };
+  }
+  return { text: fmtR(rec.net_r), val: rec.net_r };
 }
 
 function renderCalendar() {
@@ -1072,7 +1074,7 @@ function renderCalendar() {
                   <div class="cal-sub">${sub}</div></div>`;
         monthR += dv.val; monthTrades += rec.trades;
         weekR += dv.val; weekDays++;
-        if (!rec.has_money) { monthMoney = false; weekMoney = false; }
+        if (!rec.has_money && (!rec.money_trades || rec.money_trades === 0)) { monthMoney = false; weekMoney = false; }
       } else {
         body = `<div class="cal-body"><div class="cal-none">ไม่มีไม้</div></div>`;
       }
