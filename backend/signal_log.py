@@ -276,7 +276,7 @@ def settle_by_real_deals(close_info: dict, live_tickets: set | None = None) -> l
 
     conn = _connect()
     rows = conn.execute(
-        "SELECT id, symbol, action, ticket FROM signals WHERE status = 'open' AND ticket IS NOT NULL"
+        "SELECT id, symbol, action, ticket, entry, tp FROM signals WHERE status = 'open' AND ticket IS NOT NULL"
     ).fetchall()
 
     settled = []
@@ -293,8 +293,8 @@ def settle_by_real_deals(close_info: dict, live_tickets: set | None = None) -> l
             continue
         net = info.get("net_profit", 0.0)
         exit_p = info.get("exit_price") or 0.0
-        entry_p = row.get("entry") or 0.0
-        tp_p = row.get("tp") or 0.0
+        entry_p = row["entry"] or 0.0
+        tp_p = row["tp"] or 0.0
 
         # Require price to reach >= 75% of TP distance to count as a real "WIN"
         # Small profits from trailing stop or early closes settle as "breakeven"
@@ -341,7 +341,7 @@ def check_settled_by_ticket(current_prices: dict[str, float], live_tickets: set[
             continue
 
         entry = row["entry"]
-        tp_p = row.get("tp") or 0.0
+        tp_p = row["tp"] or 0.0
         tp_dist = abs(tp_p - entry) if (tp_p and entry) else 0.0
         reached_dist = abs(price - entry)
 
