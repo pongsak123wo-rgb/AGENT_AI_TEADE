@@ -490,6 +490,14 @@ def get_cost_guard_status():
     return cost_guard.status()
 
 
+@app.post("/cost-guard/sync")
+def sync_cost_guard(real_thb: float):
+    """Align the guard's running total with Google's real invoice figure."""
+    import cost_guard
+    cost_guard.sync_spent(real_thb)
+    return cost_guard.status()
+
+
 @app.get("/monitor/status")
 def get_monitor_status():
     return monitor.status()

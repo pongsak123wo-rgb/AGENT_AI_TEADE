@@ -24,9 +24,16 @@ from pathlib import Path
 
 _STATE_PATH = Path(__file__).parent / "cost_guard_state.json"
 
+# Pricing MUST match the model actually billed. The real Google bill showed
+# the API serving a newer Gemini Flash (billed as "gemini 3.6 flash"),
+# whose rates are far above the 2.0-flash values the guard originally used
+# ($0.10 in / $0.40 out). Verified against a real invoice: 957 calls cost
+# ฿92.59 input + ฿167.04 output, which back-solves to roughly the rates
+# below — the old guard undercounted ~24x, so its cap never triggered.
+# Adjust these if the served model or its pricing changes.
 USD_TO_THB = 35.0
-IN_PRICE_PER_TOKEN = 0.10 / 1_000_000
-OUT_PRICE_PER_TOKEN = 0.40 / 1_000_000
+IN_PRICE_PER_TOKEN = 0.30 / 1_000_000    # ~$0.30 / 1M input tokens
+OUT_PRICE_PER_TOKEN = 2.50 / 1_000_000   # ~$2.50 / 1M output tokens (output dominates cost)
 
 
 def _budget_thb() -> float:
@@ -74,6 +81,16 @@ def record(in_tokens: int, out_tokens: int):
     d["spent_thb"] = round(d["spent_thb"] + cost_usd * USD_TO_THB, 4)
     d["calls"] = d.get("calls", 0) + 1
     _save(d)
+
+
+def sync_spent(real_thb: float):
+    """Force this month's running total to a known figure — used to align
+    the guard with Google's actual invoice when the estimate has drifted, so
+    the cap reflects real spend instead of the under/over-count."""
+    d = _load()
+    d["spent_thb"] = round(float(real_thb), 2)
+    _save(d)
+    return d["spent_thb"]
 
 
 def status() -> dict:

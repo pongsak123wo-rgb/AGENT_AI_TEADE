@@ -29,12 +29,18 @@ def generate(system_prompt: str, user_prompt: str) -> str | None:
         generation_config={"temperature": 0.0, "top_p": 1.0, "top_k": 1},
     )
 
-    # Record estimated spend from the API's real token counts when present,
-    # else a chars/4 estimate.
+    # Record spend from the API's REAL token counts. Reading usage_metadata
+    # reliably matters: when it silently fell back to a chars/4 estimate the
+    # guard undercounted the bill ~24x. The fallback estimate now also counts
+    # the system prompt (previously omitted) so it can't wildly underread.
     try:
         um = getattr(response, "usage_metadata", None)
-        in_tok = getattr(um, "prompt_token_count", None) or cost_guard.estimate_tokens(system_prompt + user_prompt)
-        out_tok = getattr(um, "candidates_token_count", None) or cost_guard.estimate_tokens(response.text or "")
+        in_tok = int(getattr(um, "prompt_token_count", 0) or 0)
+        out_tok = int(getattr(um, "candidates_token_count", 0) or 0)
+        if in_tok <= 0:
+            in_tok = cost_guard.estimate_tokens(system_prompt + user_prompt)
+        if out_tok <= 0:
+            out_tok = cost_guard.estimate_tokens(response.text or "")
         cost_guard.record(in_tok, out_tok)
     except Exception:
         pass
