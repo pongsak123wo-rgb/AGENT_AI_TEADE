@@ -28,13 +28,10 @@ def generate(system_prompt: str, user_prompt: str) -> str | None:
     # fine before. max_output_tokens also hard-caps runaway output.
     model = genai.GenerativeModel(os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"),
                                   system_instruction=system_prompt)
-    # temperature=0 → greedy decoding: the same prompt yields the same
-    # answer (as close to deterministic as the API allows), so a setup
-    # can't flip buy/sell run-to-run and results become reproducible.
     response = model.generate_content(
         user_prompt,
         generation_config={"temperature": 0.0, "top_p": 1.0, "top_k": 1,
-                           "max_output_tokens": 1024},
+                           "max_output_tokens": 512},
     )
 
     # Record spend from the API's REAL token counts. Reading usage_metadata
