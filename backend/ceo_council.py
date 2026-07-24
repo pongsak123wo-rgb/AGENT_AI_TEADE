@@ -20,12 +20,12 @@ import llm_circuit_breaker
 import signal_log
 from llm_providers import cerebras, gemini, groq
 
-# Gemini first (cheapest/best), then Cerebras + Groq as fallbacks. Without
-# fallbacks the CEO cast ZERO votes whenever Gemini's free-tier quota hit 0
-# (429) — every setup died at "no CEO provider available" and the system
-# never traded. The cost guard still throttles Gemini spend; these are the
-# free providers it falls back to.
-PROVIDERS = [gemini, cerebras, groq]
+# Free-first provider lineup: if DISABLE_GEMINI=1 is set in .env, Gemini is excluded
+# entirely, running 100% free on Groq + Cerebras with 0 THB API costs.
+if os.environ.get("DISABLE_GEMINI") == "1":
+    PROVIDERS = [groq, cerebras]
+else:
+    PROVIDERS = [gemini, cerebras, groq]
 
 SYSTEM_PROMPT = """คุณคือ CEO Agent ในทีมเทรด ตัดสินใจว่าจะ "อนุมัติ" หรือ "ปฏิเสธ" สัญญาณเทรดที่เสนอมา
 โดยพิจารณาจากรายงานของ Technical Analysis, News Agent, Risk Management, และ "ค่า indicator ดิบ" ที่ให้มาด้วยตัวเอง
