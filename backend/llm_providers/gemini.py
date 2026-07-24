@@ -6,14 +6,13 @@ NAME = "gemini"
 
 
 def generate(system_prompt: str, user_prompt: str) -> str | None:
+    if os.environ.get("DISABLE_GEMINI") == "1":
+        return None
+
     api_key = os.environ.get("GEMINI_API_KEY")
     if not api_key:
         return None
 
-    # Monthly spend cap — if this month's estimated Gemini cost already hit
-    # the budget, skip Gemini so the caller falls back to the free
-    # Groq/Cerebras providers. Prevents the bill from ever running past
-    # GEMINI_MONTHLY_BUDGET_THB regardless of Google's own quota settings.
     if not cost_guard.can_spend():
         return None
 
