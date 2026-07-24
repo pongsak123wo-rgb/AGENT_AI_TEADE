@@ -24,16 +24,13 @@ from pathlib import Path
 
 _STATE_PATH = Path(__file__).parent / "cost_guard_state.json"
 
-# Pricing MUST match the model actually billed. The real Google bill showed
-# the API serving a newer Gemini Flash (billed as "gemini 3.6 flash"),
-# whose rates are far above the 2.0-flash values the guard originally used
-# ($0.10 in / $0.40 out). Verified against a real invoice: 957 calls cost
-# ฿92.59 input + ฿167.04 output, which back-solves to roughly the rates
-# below — the old guard undercounted ~24x, so its cap never triggered.
-# Adjust these if the served model or its pricing changes.
+# Pricing MUST match the model in gemini.py. Default is gemini-2.0-flash
+# ($0.10 in / $0.40 out) — a cheap, non-"thinking" model. If GEMINI_MODEL is
+# switched to a pricier/thinking flash (e.g. 3.x, which bills hidden
+# reasoning as output), raise these to match or the guard will undercount.
 USD_TO_THB = 35.0
-IN_PRICE_PER_TOKEN = 0.30 / 1_000_000    # ~$0.30 / 1M input tokens
-OUT_PRICE_PER_TOKEN = 2.50 / 1_000_000   # ~$2.50 / 1M output tokens (output dominates cost)
+IN_PRICE_PER_TOKEN = 0.10 / 1_000_000    # gemini-2.0-flash input
+OUT_PRICE_PER_TOKEN = 0.40 / 1_000_000   # gemini-2.0-flash output
 
 
 def _budget_thb() -> float:

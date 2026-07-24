@@ -20,13 +20,21 @@ def generate(system_prompt: str, user_prompt: str) -> str | None:
     import google.generativeai as genai
 
     genai.configure(api_key=api_key)
-    model = genai.GenerativeModel("gemini-3.6-flash", system_instruction=system_prompt)
+    # gemini-2.0-flash, NOT a "thinking" model: gemini-3.x-flash silently
+    # generates hidden reasoning tokens that are billed as (expensive)
+    # output — a real invoice showed ~2000 output tokens per call for a
+    # ~150-token JSON answer, driving most of the cost. 2.0-flash is ~6x
+    # cheaper ($0.10/$0.40), has no thinking tokens, and its answers were
+    # fine before. max_output_tokens also hard-caps runaway output.
+    model = genai.GenerativeModel(os.environ.get("GEMINI_MODEL", "gemini-2.0-flash"),
+                                  system_instruction=system_prompt)
     # temperature=0 → greedy decoding: the same prompt yields the same
     # answer (as close to deterministic as the API allows), so a setup
     # can't flip buy/sell run-to-run and results become reproducible.
     response = model.generate_content(
         user_prompt,
-        generation_config={"temperature": 0.0, "top_p": 1.0, "top_k": 1},
+        generation_config={"temperature": 0.0, "top_p": 1.0, "top_k": 1,
+                           "max_output_tokens": 1024},
     )
 
     # Record spend from the API's REAL token counts. Reading usage_metadata
