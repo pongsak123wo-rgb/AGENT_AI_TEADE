@@ -269,16 +269,46 @@ async function loadRisk() {
 }
 
 document.getElementById("risk-save").addEventListener("click", async () => {
+  const btn = document.getElementById("risk-save");
+  const origText = btn.textContent;
+  btn.textContent = "⏳ กำลังบันทึก...";
+  btn.disabled = true;
+
   const body = {};
   for (const [key, el] of Object.entries(riskInputs)) {
-    body[key] = parseFloat(el.value);
+    if (el && el.value !== "") {
+      body[key] = parseFloat(el.value);
+    }
   }
-  const res = await fetch(`${API}/risk`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  renderRiskSnapshot(await res.json());
+  try {
+    const token = localStorage.getItem("dashboard_token") || "";
+    const res = await fetch(`${API}/risk`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Dashboard-Token": token,
+      },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) {
+      if (document.activeElement) document.activeElement.blur();
+      const snap = await res.json();
+      renderRiskSnapshot(snap);
+      btn.textContent = "✓ บันทึกสำเร็จ!";
+      btn.style.backgroundColor = "#10b981";
+    } else {
+      btn.textContent = "❌ บันทึกไม่ผ่าน (401)";
+      btn.style.backgroundColor = "#ef4444";
+    }
+  } catch (err) {
+    btn.textContent = "❌ เกิดข้อผิดพลาด";
+    btn.style.backgroundColor = "#ef4444";
+  }
+  setTimeout(() => {
+    btn.textContent = origText;
+    btn.style.backgroundColor = "";
+    btn.disabled = false;
+  }, 2000);
 });
 
 loadRisk();
