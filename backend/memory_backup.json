@@ -1,0 +1,252 @@
+{
+  "exported_at": 1785171343.6498468,
+  "date_str": "2026-07-27 23:55:43",
+  "stats": {
+    "total": 5,
+    "open": 0,
+    "win": 2,
+    "loss": 3,
+    "breakeven": 0,
+    "closed": 5,
+    "win_rate_pct": 40.0,
+    "buy_count": 5,
+    "sell_count": 0,
+    "daily": [
+      {
+        "date": "2026-07-23",
+        "total": 2,
+        "buy": 2,
+        "sell": 0
+      },
+      {
+        "date": "2026-07-22",
+        "total": 3,
+        "buy": 3,
+        "sell": 0
+      }
+    ]
+  },
+  "learned_patterns": [
+    {
+      "action": "buy",
+      "rsi_state": "neutral",
+      "ema_trend": "up",
+      "win": 2,
+      "loss": 3,
+      "samples": 5,
+      "win_rate_pct": 40.0
+    }
+  ],
+  "structure_patterns": [
+    {
+      "structure_event": "BOS",
+      "mtf_confluence": "none",
+      "win": 1,
+      "loss": 0,
+      "samples": 1,
+      "win_rate_pct": 100.0
+    },
+    {
+      "structure_event": "none",
+      "mtf_confluence": "swing_only",
+      "win": 1,
+      "loss": 1,
+      "samples": 2,
+      "win_rate_pct": 50.0
+    },
+    {
+      "structure_event": "none",
+      "mtf_confluence": "none",
+      "win": 0,
+      "loss": 2,
+      "samples": 2,
+      "win_rate_pct": 0.0
+    }
+  ],
+  "symbol_expectancy": [
+    {
+      "symbol": "EURJPY",
+      "samples": 2,
+      "expectancy_r": -0.22,
+      "avg_win_r": 0.572,
+      "avg_loss_r": -1.012,
+      "win_count": 1,
+      "loss_count": 1
+    },
+    {
+      "symbol": "XAUUSD",
+      "samples": 2,
+      "expectancy_r": -0.271,
+      "avg_win_r": 0.457,
+      "avg_loss_r": -1.0,
+      "win_count": 1,
+      "loss_count": 1
+    },
+    {
+      "symbol": "EURUSD",
+      "samples": 1,
+      "expectancy_r": -1.0,
+      "avg_win_r": null,
+      "avg_loss_r": -1.0,
+      "win_count": 0,
+      "loss_count": 1
+    }
+  ],
+  "recent_mistakes": [
+    {
+      "id": 166,
+      "symbol": "EURUSD",
+      "action": "buy",
+      "reason": "EMA up, MACD bullish, RSI 60, swing CHoCH bullish → confluence; price in premium & above BB upper band → caution",
+      "rsi_state": "neutral",
+      "ema_trend": "up",
+      "structure_event": "none",
+      "mtf_confluence": "none",
+      "created_at": 1784790907.6706388
+    },
+    {
+      "id": 164,
+      "symbol": "XAUUSD",
+      "action": "buy",
+      "reason": "EMA uptrend, RSI 52.6, SMC BOS bullish, Elliott wave up; MACD bearish & price in premium zone temp caution",
+      "rsi_state": "neutral",
+      "ema_trend": "up",
+      "structure_event": "none",
+      "mtf_confluence": "swing_only",
+      "created_at": 1784712228.6477542
+    },
+    {
+      "id": 162,
+      "symbol": "EURJPY",
+      "action": "buy",
+      "reason": "EMA up, MACD bullish, swing CHoCH bullish, but price in premium zone; buy bias moderate.",
+      "rsi_state": "neutral",
+      "ema_trend": "up",
+      "structure_event": "none",
+      "mtf_confluence": "none",
+      "created_at": 1784708752.5011
+    }
+  ],
+  "trade_journal": [
+    {
+      "id": 166,
+      "created_at": 1784790907.6706388,
+      "closed_at": 1784806328.0,
+      "symbol": "EURUSD",
+      "action": "buy",
+      "entry": 1.14271,
+      "sl": 1.14134,
+      "tp": 1.14545,
+      "exit_price": 1.14134,
+      "status": "loss",
+      "profit": -34.75,
+      "risk_pct": 0.35,
+      "rsi_state": "neutral",
+      "ema_trend": "up",
+      "structure_event": "none",
+      "mtf_confluence": "none",
+      "reason": "EMA up, MACD bullish, RSI 60, swing CHoCH bullish → confluence; price in premium & above BB upper band → caution",
+      "ticket": 1641190085,
+      "slippage": 0.0,
+      "commission": 0.0,
+      "swap": 0.0,
+      "r_multiple": -1.0
+    },
+    {
+      "id": 165,
+      "created_at": 1784790106.4379163,
+      "closed_at": 1784804152.0,
+      "symbol": "EURJPY",
+      "action": "buy",
+      "entry": 186.388,
+      "sl": 186.16433,
+      "tp": 186.83533,
+      "exit_price": 186.516,
+      "status": "win",
+      "profit": 25.93,
+      "risk_pct": 0.35,
+      "rsi_state": "neutral",
+      "ema_trend": "up",
+      "structure_event": "BOS",
+      "mtf_confluence": "none",
+      "reason": "Bullish confluence: up EMA, MACD bullish cross, BOS+CHoCH agree, RSI bullish divergence; premium zone caution.",
+      "ticket": 1641062773,
+      "slippage": 0.0,
+      "commission": 0.0,
+      "swap": 0.0,
+      "r_multiple": 0.57
+    },
+    {
+      "id": 164,
+      "created_at": 1784712228.6477542,
+      "closed_at": 1784723837.0,
+      "symbol": "XAUUSD",
+      "action": "buy",
+      "entry": 4120.725,
+      "sl": 4115.78013,
+      "tp": 4130.61474,
+      "exit_price": 4115.78,
+      "status": "loss",
+      "profit": -40.32,
+      "risk_pct": 0.4,
+      "rsi_state": "neutral",
+      "ema_trend": "up",
+      "structure_event": "none",
+      "mtf_confluence": "swing_only",
+      "reason": "EMA uptrend, RSI 52.6, SMC BOS bullish, Elliott wave up; MACD bearish & price in premium zone temp caution",
+      "ticket": 1634721412,
+      "slippage": -0.03,
+      "commission": 0.0,
+      "swap": 0.0,
+      "r_multiple": -1.0
+    },
+    {
+      "id": 163,
+      "created_at": 1784709262.713921,
+      "closed_at": 1784722910.0,
+      "symbol": "XAUUSD",
+      "action": "buy",
+      "entry": 4117.23,
+      "sl": 4112.28932,
+      "tp": 4127.11135,
+      "exit_price": 4119.49,
+      "status": "win",
+      "profit": 9.31,
+      "risk_pct": 0.4,
+      "rsi_state": "neutral",
+      "ema_trend": "up",
+      "structure_event": "none",
+      "mtf_confluence": "swing_only",
+      "reason": "EMA up, MACD bullish, swing BOS bullish, Elliott wave 5 up; price in premium zone near resistance.",
+      "ticket": 1634516827,
+      "slippage": 0.01,
+      "commission": 0.0,
+      "swap": 0.0,
+      "r_multiple": 0.46
+    },
+    {
+      "id": 162,
+      "created_at": 1784708752.5011,
+      "closed_at": 1784720183.0,
+      "symbol": "EURJPY",
+      "action": "buy",
+      "entry": 186.033,
+      "sl": 185.99448,
+      "tp": 186.11004,
+      "exit_price": 185.994,
+      "status": "loss",
+      "profit": -35.47,
+      "risk_pct": 0.35,
+      "rsi_state": "neutral",
+      "ema_trend": "up",
+      "structure_event": "none",
+      "mtf_confluence": "none",
+      "reason": "EMA up, MACD bullish, swing CHoCH bullish, but price in premium zone; buy bias moderate.",
+      "ticket": 1634477344,
+      "slippage": 0.0,
+      "commission": 0.0,
+      "swap": 0.0,
+      "r_multiple": -1.01
+    }
+  ]
+}
