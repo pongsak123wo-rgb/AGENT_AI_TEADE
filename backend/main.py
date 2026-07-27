@@ -389,9 +389,27 @@ async def cycle_loop():
         await asyncio.sleep(5)
 
 
+async def auto_backup_loop():
+    import auto_backup
+    while True:
+        await asyncio.sleep(6 * 3600)  # Every 6 hours
+        try:
+            await asyncio.to_thread(auto_backup.push_backup_to_github)
+        except Exception as e:
+            print(f"[Backup Loop] Error: {e}")
+
+
 @app.on_event("startup")
 async def startup():
     asyncio.create_task(cycle_loop())
+    asyncio.create_task(auto_backup_loop())
+
+
+@app.post("/system/backup-now")
+def trigger_backup():
+    import auto_backup
+    ok = auto_backup.push_backup_to_github()
+    return {"ok": ok, "message": "Memory backed up and pushed to GitHub" if ok else "No changes or push failed"}
 
 
 @app.get("/feed/recent")
