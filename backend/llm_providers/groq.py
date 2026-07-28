@@ -21,15 +21,28 @@ def generate(system_prompt: str, user_prompt: str) -> str | None:
 
     from groq import Groq
 
+    models = [
+        "llama-3.3-70b-versatile",
+        "llama-3.1-8b-instant",
+        "gemma2-9b-it",
+        "mixtral-8x7b-32768"
+    ]
+
     client = Groq(api_key=api_key)
-    response = client.chat.completions.create(
-        model="llama-3.3-70b-versatile",
-        messages=[
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": user_prompt},
-        ],
-        max_tokens=1500,
-        temperature=0,   # deterministic: same setup -> same decision
-        seed=42,
-    )
-    return response.choices[0].message.content
+    for m in models:
+        try:
+            response = client.chat.completions.create(
+                model=m,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": user_prompt},
+                ],
+                max_tokens=1500,
+                temperature=0,
+            )
+            if response and response.choices:
+                return response.choices[0].message.content
+        except Exception:
+            continue
+
+    return None
