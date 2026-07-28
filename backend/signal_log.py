@@ -583,7 +583,7 @@ def get_stats() -> dict:
     daily_list = sorted(daily.values(), key=lambda x: x["date"], reverse=True)
 
     closed = counts["win"] + counts["loss"]
-    win_rate = round(counts["win"] / closed * 100, 1) if closed > 0 else None
+    win_rate = round(counts["win"] / closed * 100, 1) if closed > 0 else 0.0
 
     return {
         "total": sum(counts.values()),

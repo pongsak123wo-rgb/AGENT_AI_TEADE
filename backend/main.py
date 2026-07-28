@@ -606,6 +606,12 @@ def get_signal_stats():
     return signal_log.get_stats()
 
 
+@app.get("/signals/matrix-stats")
+@app.get("/signals/matrix")
+def get_signal_matrix_stats():
+    return signal_log.get_matrix_stats()
+
+
 @app.get("/signals/expectancy")
 def get_signal_expectancy(symbol: str | None = None):
     return signal_log.get_expectancy(symbol=symbol)
