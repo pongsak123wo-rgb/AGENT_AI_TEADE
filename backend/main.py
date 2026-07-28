@@ -609,7 +609,7 @@ def get_signal_stats():
 @app.get("/signals/matrix-stats")
 @app.get("/signals/matrix")
 def get_signal_matrix_stats():
-    return signal_log.get_matrix_stats()
+    return signal_log.get_rsi_ema_matrix()
 
 
 @app.get("/signals/expectancy")
