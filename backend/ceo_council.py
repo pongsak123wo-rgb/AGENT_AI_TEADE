@@ -155,7 +155,21 @@ def _build_prompt(technical: dict, news: dict, risk: dict, snapshot: dict) -> st
         yf = yahoo_finance.get_intermarket_status()
         yf_block = yf.get("summary", "(ไม่มีข้อมูล Intermarket)")
     except Exception:
+        yf = {}
         yf_block = "(ไม่มีข้อมูล Intermarket)"
+
+    try:
+        import allin_patterns
+
+        cot_dict = cot if (isinstance(cot, dict) and cot.get("available")) else {"bias": "neutral"}
+        flaws = indicators.get("candlestick_flaws", {"has_flaw": False})
+        mfi = indicators.get("mfi", {"state": "neutral"})
+        smc = indicators.get("smc", {})
+
+        confluence = allin_patterns.calculate_confluence_score(smc, indicators, mfi, flaws, yf, cot_dict, symbol)
+        allin_block = f"{confluence['summary']} (Score: {confluence['score']}/100)"
+    except Exception as e:
+        allin_block = f"(ไม่มีข้อมูล ALLIN Scoring: {e})"
 
     cost_block = (
         f"spread ปัจจุบัน {be['spread']}, slippage เฉลี่ยที่เคยเจอจริง {be['avg_slippage']} "
@@ -165,6 +179,8 @@ def _build_prompt(technical: dict, news: dict, risk: dict, snapshot: dict) -> st
     )
 
     return f"""สินทรัพย์: {symbol} ราคา {price}
+
+🔥 ALLIN Confluence Score Engine: {allin_block}
 
 Technical Analysis เสนอ: bias={technical['bias']}, confidence={technical.get('confidence')}%, เหตุผล: {technical.get('reason')}
 ค่า indicator ดิบ (ตรวจสอบเอง): {json.dumps(indicators, ensure_ascii=False)}

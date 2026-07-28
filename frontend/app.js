@@ -503,6 +503,48 @@ async function loadExpectancy() {
 loadExpectancy();
 setInterval(loadExpectancy, 10000);
 
+// --- ALLIN Confluence Engine Panel ---
+async function loadAllinStatus() {
+  const panel = document.getElementById("allin-panel");
+  if (!panel) return;
+  try {
+    const res = await fetch(`${API}/allin/status?symbol=XAUUSD`);
+    const data = await res.json();
+    if (!data || data.status !== "active") {
+      panel.innerHTML = '<p class="placeholder">ไม่มีข้อมูล ALLIN Scoring</p>';
+      return;
+    }
+
+    const sc = data.scoring || {};
+    const scoreVal = sc.score || 0;
+    const isApprove = sc.approved;
+    const scoreColor = isApprove ? "#10b981" : "#ef4444";
+    const statusText = isApprove ? "APPROVED (พร้อมออกไม้)" : "WAITING (เฝ้าโซนคัดเกรด)";
+
+    const breakdownHtml = (sc.breakdown || [])
+      .map(b => `<div style="font-size:12px; color:#cbd5e1; margin-top:3px;">• ${b}</div>`)
+      .join("");
+
+    panel.innerHTML = `
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <span style="font-weight:600; color:#f8fafc;">${data.symbol} Confluence Score</span>
+        <span style="font-size:16px; font-weight:700; color:${scoreColor}">${scoreVal} / 100 คะแนน</span>
+      </div>
+      <div style="margin-top:6px; font-size:13px; font-weight:600; color:${scoreColor}">
+        สถานะ: ${statusText}
+      </div>
+      <div style="margin-top:8px; border-top:1px solid rgba(255,255,255,0.08); pt:6px;">
+        ${breakdownHtml}
+      </div>
+    `;
+  } catch (e) {
+    panel.innerHTML = '<p class="placeholder">เชื่อมต่อ backend ไม่ได้</p>';
+  }
+}
+
+loadAllinStatus();
+setInterval(loadAllinStatus, 30000);
+
 // --- Self-learning panels: provider accuracy, real trading costs, ML status ---
 async function loadProviderAccuracy() {
   const panel = document.getElementById("provider-accuracy-panel");

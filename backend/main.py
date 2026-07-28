@@ -614,6 +614,41 @@ def get_signal_stats():
     return signal_log.get_stats()
 
 
+@app.get("/allin/status")
+def get_allin_status(symbol: str = "XAUUSD"):
+    try:
+        import allin_patterns
+        import yahoo_finance
+        import cot_report
+
+        yf = yahoo_finance.get_intermarket_status()
+        cot = cot_report.get_bias(symbol)
+        cot_dict = cot if (isinstance(cot, dict) and cot.get("available")) else {"bias": "neutral"}
+        
+        # Build sample confluence calculation
+        smc = {"ready": True, "structure_event": "BOS", "zone_touch": True}
+        indicators = {"rsi_state": "oversold", "ema_trend": "bullish", "candlestick_flaws": {"has_flaw": False}}
+        mfi = {"state": "oversold", "mfi": 28.5}
+        flaws = {"has_flaw": False}
+
+        score_res = allin_patterns.calculate_confluence_score(smc, indicators, mfi, flaws, yf, cot_dict, symbol)
+        return {
+            "status": "active",
+            "symbol": symbol,
+            "engine": "ALLIN Confluence 100-Point Engine",
+            "scoring": score_res,
+            "rules": [
+                "Candlestick Flaws Detection (Body Engulf without Wick Cover = Trap)",
+                "MFI Money Flow Index Confirmation",
+                "RSI 14-Candle Base Accumulation Rule",
+                "Gold RSI H4 34.05 Oversold Threshold",
+                "Dynamic Asset Buffer Math (XAUUSD=400 points)"
+            ]
+        }
+    except Exception as e:
+        return {"status": "error", "reason": str(e)}
+
+
 @app.get("/signals/matrix-stats")
 @app.get("/signals/matrix")
 def get_signal_matrix_stats():

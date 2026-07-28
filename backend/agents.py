@@ -125,6 +125,19 @@ class TechnicalAgent:
             indicator_snapshot["elliott_wave"] = {"ready": False, "reason": "ไม่มี candle จริง"}
             indicator_snapshot["structure_timeframe"] = None
 
+        import allin_patterns
+
+        indicator_snapshot["mfi"] = allin_patterns.calculate_mfi(candles if candles else {"c": snapshot["history"]})
+        indicator_snapshot["candlestick_flaws"] = allin_patterns.detect_candlestick_flaws(candles) if candles else {"has_flaw": False}
+        indicator_snapshot["rsi_accumulation"] = allin_patterns.check_rsi_14_candle_accumulation(
+            candles["c"] if candles else snapshot["history"],
+            indicator_snapshot.get("rsi", 50.0)
+        )
+        indicator_snapshot["asset_buffer"] = allin_patterns.get_asset_buffer(
+            snapshot["symbol"],
+            indicator_snapshot.get("atr")
+        )
+
         return indicator_snapshot
 
     def reason(self, symbol: str, indicator_snapshot: dict) -> dict:
