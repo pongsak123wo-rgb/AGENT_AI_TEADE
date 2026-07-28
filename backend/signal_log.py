@@ -205,11 +205,12 @@ def get_equity_curve() -> list[dict]:
         if r["profit"] is not None:
             pnl = float(r["profit"])
         else:
-            # no real deal P/L — approximate from R so the curve isn't blank
+            # no real deal P/L — approximate in dollars from R-multiple (0.35% of 10k = $35)
             risk = abs((r["entry"] or 0) - (r["sl"] or 0))
             if risk and r["exit_price"] is not None:
                 move = (r["exit_price"] - r["entry"]) if r["action"] == "buy" else (r["entry"] - r["exit_price"])
-                pnl = max(-20.0, min(20.0, move / risk))  # in R, capped
+                r_mult = max(-20.0, min(20.0, move / risk))
+                pnl = r_mult * 35.0
             else:
                 pnl = 0.0
         cum += pnl
