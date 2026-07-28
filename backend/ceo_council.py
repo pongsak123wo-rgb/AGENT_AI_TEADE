@@ -20,12 +20,8 @@ import llm_circuit_breaker
 import signal_log
 from llm_providers import cerebras, gemini, groq
 
-# Free-first provider lineup: if DISABLE_GEMINI=1 is set in .env, Gemini is excluded
-# entirely, running 100% free on Groq + Cerebras with 0 THB API costs.
-if os.environ.get("DISABLE_GEMINI") == "1":
-    PROVIDERS = [groq, cerebras]
-else:
-    PROVIDERS = [gemini, cerebras, groq]
+# 100% Free LLM providers: Groq (Llama 3.3 70B) + Cerebras (Llama 3.1 8B)
+PROVIDERS = [groq, cerebras]
 
 SYSTEM_PROMPT = """คุณคือ CEO Agent ในทีมเทรด ตัดสินใจว่าจะ "อนุมัติ" หรือ "ปฏิเสธ" สัญญาณเทรดที่เสนอมา
 โดยพิจารณาจากรายงานของ Technical Analysis, News Agent, Risk Management, และ "ค่า indicator ดิบ" ที่ให้มาด้วยตัวเอง

@@ -32,10 +32,8 @@ import ml_model
 from knowledge_base import retrieve
 from llm_providers import cerebras, gemini, groq
 
-if os.environ.get("DISABLE_GEMINI") == "1":
-    PROVIDERS = [groq, cerebras]
-else:
-    PROVIDERS = [groq, cerebras, gemini]
+# 100% Free LLM providers: Groq (Llama 3.3 70B) + Cerebras (Llama 3.1 8B)
+PROVIDERS = [groq, cerebras]
 
 SYSTEM_PROMPT = """คุณคือ Technical Analysis Agent ในทีมเทรด หน้าที่คือตัดสินว่ามี setup เทรดที่น่าสนใจหรือไม่
 จากค่า indicator ที่ให้มา (เป็นข้อเท็จจริง ห้ามสมมติค่าเอง) — มี RSI, EMA fast/slow (เทรนด์ระยะสั้น),
@@ -205,7 +203,7 @@ def analyze(symbol: str, indicator_snapshot: dict) -> dict:
         return {
             "bias": "none",
             "confidence": 0,
-            "reason": "ไม่มี LLM provider ใดใช้งานได้เลย (GEMINI_API_KEY / GROQ_API_KEY / CEREBRAS_API_KEY ไม่ได้ตั้งค่า)",
+            "reason": "ไม่มี LLM provider ใดใช้งานได้เลย (GROQ_API_KEY / CEREBRAS_API_KEY ไม่ได้ตั้งค่า หรือติด Cooldown)",
             "indicators": indicator_snapshot,
             "knowledge_used": [],
             "knowledge_cited": False,
