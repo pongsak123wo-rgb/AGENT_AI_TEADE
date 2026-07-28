@@ -138,6 +138,17 @@ def _build_prompt(technical: dict, news: dict, risk: dict, snapshot: dict) -> st
     else:
         sentiment_block = "(ไม่มีข้อมูล sentiment)"
 
+    try:
+        import cot_report
+
+        cot = cot_report.get_bias(symbol)
+        if cot and cot.get("available"):
+            cot_block = f"bias={cot['bias']} (score={cot['score']:+.4f}, trend={cot['trend']}, date={cot['date']}) — {cot['detail']}"
+        else:
+            cot_block = f"neutral ({cot.get('reason', 'ไม่มีข้อมูล')})"
+    except Exception:
+        cot_block = "(ไม่มีข้อมูล COT)"
+
     cost_block = (
         f"spread ปัจจุบัน {be['spread']}, slippage เฉลี่ยที่เคยเจอจริง {be['avg_slippage']} "
         f"(จาก {be['cost_samples']} ไม้ที่ execute จริง), ค่าคอมเฉลี่ย {be['avg_commission_per_trade']} ต่อไม้ → "
@@ -150,6 +161,7 @@ def _build_prompt(technical: dict, news: dict, risk: dict, snapshot: dict) -> st
 Technical Analysis เสนอ: bias={technical['bias']}, confidence={technical.get('confidence')}%, เหตุผล: {technical.get('reason')}
 ค่า indicator ดิบ (ตรวจสอบเอง): {json.dumps(indicators, ensure_ascii=False)}
 Technical Agent อ้างความรู้จาก PDF: knowledge_cited={technical.get('knowledge_cited')}, knowledge_note="{technical.get('knowledge_note')}"
+🏛️ CFTC COT Report (สถานะเงินทุนสถาบันรายใหญ่): {cot_block}
 News Agent: ปลอดภัยที่จะเทรด = {news.get('safe', True)}
 News sentiment ของสกุลเงินที่เกี่ยวข้อง (จากพาดหัวข่าวจริง): {sentiment_block}
 Risk Management: อนุมัติ = {risk['approved']}, เหตุผล: {risk['reason']}
