@@ -11,6 +11,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from pathlib import Path
+
+_backend_env = Path(__file__).parent / ".env"
+_root_env = Path(__file__).parent.parent / ".env"
+if _backend_env.exists():
+    load_dotenv(_backend_env)
+if _root_env.exists():
+    load_dotenv(_root_env)
 load_dotenv()
 
 # Dashboard password. Set DASHBOARD_PASSWORD in .env to lock the API + WS
