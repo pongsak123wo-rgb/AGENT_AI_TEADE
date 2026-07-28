@@ -1342,6 +1342,42 @@ async function loadRsiEmaMatrix() {
 loadSymbolExpectancy();
 loadHourlyStats();
 loadRsiEmaMatrix();
+loadAiLevel();
 setInterval(loadSymbolExpectancy, 15000);
 setInterval(loadHourlyStats, 15000);
 setInterval(loadRsiEmaMatrix, 15000);
+setInterval(loadAiLevel, 10000);
+
+async function loadAiLevel() {
+  try {
+    const res = await fetch(`${API}/ai/level`);
+    const d = await res.json();
+
+    const mLvl = document.getElementById("m-ai-level");
+    if (mLvl) mLvl.textContent = `${d.badge} Lv.${d.level}`;
+
+    const badge = document.getElementById("ai-badge");
+    const title = document.getElementById("ai-title");
+    const xp = document.getElementById("ai-xp");
+    const fill = document.getElementById("ai-xp-fill");
+    const grid = document.getElementById("ai-badges-grid");
+
+    if (badge) badge.textContent = d.badge;
+    if (title) title.textContent = `Lv.${d.level} ${d.title}`;
+    if (xp) xp.textContent = `${d.xp} / ${d.next_level_xp} XP`;
+    if (fill) fill.style.width = `${d.progress_pct}%`;
+
+    if (grid && d.badges) {
+      grid.innerHTML = d.badges.map(b => {
+        const bg = b.unlocked ? "#1a365d" : "#1a202c";
+        const border = b.unlocked ? "1px solid #3182ce" : "1px solid #2d3748";
+        const opacity = b.unlocked ? "1.0" : "0.5";
+        return `
+          <div style="background:${bg}; border:${border}; opacity:${opacity}; padding:8px; border-radius:6px; font-size:10px;">
+            <div style="font-weight:bold; color:#fff; font-size:11px;">${b.icon} ${b.name} ${b.unlocked ? "✓" : "🔒"}</div>
+            <div style="color:#a0aec0; margin-top:2px;">${b.desc}</div>
+          </div>`;
+      }).join("");
+    }
+  } catch(e) {}
+}

@@ -412,6 +412,12 @@ def trigger_backup():
     return {"ok": ok, "message": "Memory backed up and pushed to GitHub" if ok else "No changes or push failed"}
 
 
+@app.get("/ai/level")
+def get_ai_level():
+    import ai_level
+    return ai_level.get_ai_level_status()
+
+
 @app.get("/feed/recent")
 def get_recent_feed():
     return list(recent_messages)

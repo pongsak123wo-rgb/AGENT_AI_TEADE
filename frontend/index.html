@@ -36,6 +36,10 @@
       <div class="metric-label">สถานะ</div>
       <div class="metric-value" id="m-live">--</div>
     </div>
+    <div class="metric">
+      <div class="metric-label">AI Level</div>
+      <div class="metric-value" id="m-ai-level">🟩 Lv.1</div>
+    </div>
   </div>
 
   <div class="tab-nav">
@@ -62,6 +66,21 @@
       </div>
 
       <div class="results-col">
+        <h2>🧠 AI Evolution & Badges (พัฒนาการสมองกล AI)</h2>
+        <div class="winrate-panel" id="ai-level-card">
+          <div style="display:flex; justify-size:space-between; align-items:center; margin-bottom:8px;">
+            <div>
+              <span id="ai-badge" style="font-size:1.4rem;">🟩</span>
+              <strong id="ai-title" style="font-size:1.1rem; color:#fff; margin-left:6px;">Lv.1 Novice Analyst</strong>
+            </div>
+            <span id="ai-xp" style="font-size:0.9rem; color:#a0aec0; font-weight:bold;">10 / 100 XP</span>
+          </div>
+          <div style="background:#2d3748; height:10px; border-radius:5px; overflow:hidden; margin-bottom:12px;">
+            <div id="ai-xp-fill" style="background:linear-gradient(90deg, #3182ce, #805ad5); height:100%; width:10%; transition:width 0.5s ease;"></div>
+          </div>
+          <div id="ai-badges-grid" style="display:grid; grid-template-columns:1fr 1fr; gap:8px;"></div>
+        </div>
+
         <h2>Live Indicators (อัปเดตล่าสุด)</h2>
         <div class="winrate-panel" id="indicators-panel" style="text-align:left;">
           <p class="placeholder">รอ Technical Agent วิเคราะห์รอบแรก...</p>
