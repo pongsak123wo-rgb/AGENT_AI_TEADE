@@ -244,6 +244,11 @@ def get_trade_journal(limit: int = 50) -> list[dict]:
             d["r_multiple"] = round(max(-20.0, min(20.0, move / risk)), 2)
         else:
             d["r_multiple"] = None
+
+        if d.get("profit") is None and d.get("r_multiple") is not None:
+            risk_usd = 10000.0 * ((d.get("risk_pct") or 0.35) / 100.0)
+            d["profit"] = round(d["r_multiple"] * risk_usd, 2)
+
         out.append(d)
     return out
 
@@ -353,13 +358,18 @@ def check_settled_by_ticket(current_prices: dict[str, float], live_tickets: set[
             hit = "win" if (is_pos and tp_dist > 0 and reached_dist >= (tp_dist * 0.75)) else ("breakeven" if is_pos else "loss")
         else:
             is_pos = price < entry
-            hit = "win" if (is_pos and tp_dist > 0 and reached_dist >= (tp_dist * 0.75)) else ("breakeven" if is_pos else "loss")
+        hit_r = round(max(-20.0, min(20.0, (price - entry) / abs(entry - row["sl"]) if (entry and row.get("sl") and entry != row["sl"]) else 0.0)), 2)
+        if row["action"] == "sell":
+            hit_r = -hit_r
+
+        risk_usd = 10000.0 * ((row["risk_pct"] or 0.35) / 100.0)
+        est_profit = round(hit_r * risk_usd, 2)
 
         conn.execute(
-            "UPDATE signals SET status = ?, closed_at = ?, exit_price = ? WHERE id = ?",
-            (hit, time.time(), price, row["id"]),
+            "UPDATE signals SET status = ?, closed_at = ?, exit_price = ?, profit = ? WHERE id = ?",
+            (hit, time.time(), price, est_profit, row["id"]),
         )
-        settled.append({"id": row["id"], "symbol": row["symbol"], "action": row["action"], "result": hit})
+        settled.append({"id": row["id"], "symbol": row["symbol"], "action": row["action"], "result": hit, "profit": est_profit})
 
     conn.commit()
     conn.close()
