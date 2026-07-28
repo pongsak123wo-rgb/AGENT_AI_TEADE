@@ -747,7 +747,7 @@ def get_daily_pnl() -> list[dict]:
     import datetime
     conn = _connect()
     rows = conn.execute(
-        "SELECT created_at, action, entry, sl, exit_price, status, profit FROM signals "
+        "SELECT COALESCE(closed_at, created_at) AS time_ts, action, entry, sl, exit_price, status, profit, risk_pct FROM signals "
         "WHERE ticket IS NOT NULL AND status IN ('win','loss','breakeven') AND exit_price IS NOT NULL AND sl IS NOT NULL"
     ).fetchall()
     conn.close()
@@ -763,14 +763,17 @@ def get_daily_pnl() -> list[dict]:
         r = move / risk_dist
         if abs(r) > MAX_R:
             continue
-        d = datetime.datetime.fromtimestamp(row["created_at"], tz=tz).strftime("%Y-%m-%d")
+        d = datetime.datetime.fromtimestamp(row["time_ts"], tz=tz).strftime("%Y-%m-%d")
         b = daily.setdefault(d, {"date": d, "net_r": 0.0, "net_profit": 0.0,
                                  "wins": 0, "losses": 0, "breakeven": 0,
                                  "trades": 0, "money_trades": 0})
         b["net_r"] += r
         b["trades"] += 1
-        if row["profit"] is not None:
-            b["net_profit"] += float(row["profit"])
+        p = row["profit"]
+        if p is None and r is not None:
+            p = round(r * (10000.0 * ((row["risk_pct"] or 0.35) / 100.0)), 2)
+        if p is not None:
+            b["net_profit"] += float(p)
             b["money_trades"] += 1
         if row["status"] == "win":
             b["wins"] += 1

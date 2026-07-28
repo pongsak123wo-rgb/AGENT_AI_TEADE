@@ -1216,10 +1216,10 @@ async function loadJournal() {
           <td style="text-align:center;">${r.entry}</td>
           <td style="text-align:center;color:#888;">${r.sl}</td>
           <td style="text-align:center;color:#888;">${r.tp}</td>
-          <td style="text-align:center;">${r.exit_price ?? "-"}</td>
+          <td style="text-align:center;">${typeof r.exit_price === 'number' ? Number(r.exit_price.toFixed(5)) : (r.exit_price ?? "-")}</td>
           <td style="text-align:center;color:${stCol[r.status] || '#888'}">${r.status}</td>
-          <td style="text-align:center;">${r.r_multiple !== null ? r.r_multiple + "R" : "-"}</td>
-          <td style="text-align:center;color:${(r.profit ?? 0) >= 0 ? 'var(--green-bright)' : 'var(--red-bright)'}">${r.profit !== null ? (r.profit >= 0 ? "+" : "") + r.profit : "-"}</td>
+          <td style="text-align:center;font-weight:bold;">${r.r_multiple !== null && r.r_multiple !== undefined ? (r.r_multiple > 0 ? "+" : "") + Number(r.r_multiple.toFixed(2)) + "R" : "-"}</td>
+          <td style="text-align:center;font-weight:bold;color:${(r.profit ?? 0) >= 0 ? 'var(--green-bright)' : 'var(--red-bright)'}">${r.profit !== null && r.profit !== undefined ? (r.profit >= 0 ? "+" : "") + Number(r.profit.toFixed(2)) : "-"}</td>
           <td style="padding:4px;color:var(--text-dim);max-width:220px;">${(r.reason || "").slice(0, 90)}</td>
         </tr>`).join("") + `</tbody></table>`;
   } catch (e) {
