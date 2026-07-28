@@ -15,6 +15,17 @@ from __future__ import annotations
 import json
 import os
 
+from pathlib import Path
+from dotenv import load_dotenv
+
+_env1 = Path(__file__).parent / ".env"
+_env2 = Path(__file__).parent.parent / ".env"
+if _env1.exists():
+    load_dotenv(_env1)
+if _env2.exists():
+    load_dotenv(_env2)
+load_dotenv()
+
 import llm_circuit_breaker
 import signal_log
 import ml_model
