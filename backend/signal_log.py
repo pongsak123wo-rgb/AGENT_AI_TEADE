@@ -773,7 +773,7 @@ def get_daily_pnl() -> list[dict]:
     for b in sorted(daily.values(), key=lambda x: x["date"], reverse=True):
         b["net_r"] = round(b["net_r"], 2)
         b["net_profit"] = round(b["net_profit"], 2)
-        b["has_money"] = b["money_trades"] == b["trades"] and b["trades"] > 0
+        b["has_money"] = b["money_trades"] > 0
         out.append(b)
     return out
 
