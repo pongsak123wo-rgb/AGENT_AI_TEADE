@@ -649,6 +649,13 @@ def get_allin_status(symbol: str = "XAUUSD"):
         return {"status": "error", "reason": str(e)}
 
 
+@app.get("/llm/reset-cooldowns")
+def reset_llm_cooldowns():
+    import llm_circuit_breaker
+    llm_circuit_breaker.reset_cooldowns()
+    return {"status": "reset", "message": "All LLM circuit breakers reset to active."}
+
+
 @app.get("/signals/matrix-stats")
 @app.get("/signals/matrix")
 def get_signal_matrix_stats():

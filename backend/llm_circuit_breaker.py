@@ -39,6 +39,10 @@ def record_success(name: str):
     _failures.pop(name, None)
 
 
+def reset_cooldowns():
+    _failures.clear()
+
+
 def status() -> dict:
     now = time.time()
     return {
