@@ -18,7 +18,7 @@ from __future__ import annotations
 import time
 
 FAILURE_THRESHOLD = 3
-COOLDOWN_SEC = 30 * 60
+COOLDOWN_SEC = 3 * 60  # 3 minutes cooldown (quick recovery for free tier rate-limits)
 
 _failures: dict[str, dict] = {}
 
