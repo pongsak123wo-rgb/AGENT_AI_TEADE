@@ -418,6 +418,12 @@ def get_ai_level():
     return ai_level.get_ai_level_status()
 
 
+@app.get("/intermarket/status")
+def get_intermarket_status():
+    import yahoo_finance
+    return yahoo_finance.get_intermarket_status()
+
+
 @app.get("/feed/recent")
 def get_recent_feed():
     return list(recent_messages)

@@ -149,6 +149,14 @@ def _build_prompt(technical: dict, news: dict, risk: dict, snapshot: dict) -> st
     except Exception:
         cot_block = "(ไม่มีข้อมูล COT)"
 
+    try:
+        import yahoo_finance
+
+        yf = yahoo_finance.get_intermarket_status()
+        yf_block = yf.get("summary", "(ไม่มีข้อมูล Intermarket)")
+    except Exception:
+        yf_block = "(ไม่มีข้อมูล Intermarket)"
+
     cost_block = (
         f"spread ปัจจุบัน {be['spread']}, slippage เฉลี่ยที่เคยเจอจริง {be['avg_slippage']} "
         f"(จาก {be['cost_samples']} ไม้ที่ execute จริง), ค่าคอมเฉลี่ย {be['avg_commission_per_trade']} ต่อไม้ → "
@@ -162,6 +170,7 @@ Technical Analysis เสนอ: bias={technical['bias']}, confidence={technical
 ค่า indicator ดิบ (ตรวจสอบเอง): {json.dumps(indicators, ensure_ascii=False)}
 Technical Agent อ้างความรู้จาก PDF: knowledge_cited={technical.get('knowledge_cited')}, knowledge_note="{technical.get('knowledge_note')}"
 🏛️ CFTC COT Report (สถานะเงินทุนสถาบันรายใหญ่): {cot_block}
+🌐 Yahoo Finance Intermarket Macro: {yf_block}
 News Agent: ปลอดภัยที่จะเทรด = {news.get('safe', True)}
 News sentiment ของสกุลเงินที่เกี่ยวข้อง (จากพาดหัวข่าวจริง): {sentiment_block}
 Risk Management: อนุมัติ = {risk['approved']}, เหตุผล: {risk['reason']}

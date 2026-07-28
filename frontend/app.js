@@ -1343,10 +1343,12 @@ loadSymbolExpectancy();
 loadHourlyStats();
 loadRsiEmaMatrix();
 loadAiLevel();
+loadYahooFinance();
 setInterval(loadSymbolExpectancy, 15000);
 setInterval(loadHourlyStats, 15000);
 setInterval(loadRsiEmaMatrix, 15000);
 setInterval(loadAiLevel, 10000);
+setInterval(loadYahooFinance, 30000);
 
 async function loadAiLevel() {
   try {
@@ -1380,4 +1382,37 @@ async function loadAiLevel() {
       }).join("");
     }
   } catch(e) {}
+}
+
+async function loadYahooFinance() {
+  const panel = document.getElementById("yf-panel");
+  if (!panel) return;
+  try {
+    const res = await fetch(`${API}/intermarket/status`);
+    const d = await res.json();
+    if (!d || !d.dxy) { panel.innerHTML = '<p class="placeholder">ไม่มีข้อมูล Intermarket</p>'; return; }
+
+    const dxyChgCol = d.dxy.change_pct >= 0 ? "var(--green)" : "var(--red)";
+    const yldChgCol = d.us10y.change_pct >= 0 ? "var(--green)" : "var(--red)";
+
+    panel.innerHTML = `
+      <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:8px; font-size:11px;">
+        <div style="background:#1a202c; border:1px solid #2d3748; padding:8px; border-radius:6px; text-align:center;">
+          <div style="color:#a0aec0; font-size:10px; font-weight:bold;">💵 DXY (Dollar Index)</div>
+          <div style="font-size:14px; font-weight:bold; color:#fff; margin:2px 0;">${d.dxy.price}</div>
+          <div style="color:${dxyChgCol}; font-size:10px;">${d.dxy.change_pct >= 0 ? "+" : ""}${d.dxy.change_pct}%</div>
+        </div>
+        <div style="background:#1a202c; border:1px solid #2d3748; padding:8px; border-radius:6px; text-align:center;">
+          <div style="color:#a0aec0; font-size:10px; font-weight:bold;">📈 US10Y Yield</div>
+          <div style="font-size:14px; font-weight:bold; color:#fff; margin:2px 0;">${d.us10y.price}%</div>
+          <div style="color:${yldChgCol}; font-size:10px;">${d.us10y.change_pct >= 0 ? "+" : ""}${d.us10y.change_pct}%</div>
+        </div>
+        <div style="background:#1a202c; border:1px solid #2d3748; padding:8px; border-radius:6px; text-align:center;">
+          <div style="color:#a0aec0; font-size:10px; font-weight:bold;">😱 VIX Fear Index</div>
+          <div style="font-size:14px; font-weight:bold; color:#fff; margin:2px 0;">${d.vix.price}</div>
+          <div style="color:#e2e8f0; font-size:9px;">${d.vix.level}</div>
+        </div>
+      </div>
+      <div style="color:#718096; font-size:9px; margin-top:6px; text-align:right;">อัปเดตเรียลไทม์ผ่าน Yahoo Finance 0 บาท</div>`;
+  } catch(e) { panel.innerHTML = '<p class="placeholder">เชื่อมต่อ backend ไม่ได้</p>'; }
 }
