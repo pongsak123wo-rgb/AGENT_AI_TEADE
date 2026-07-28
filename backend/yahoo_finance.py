@@ -21,7 +21,7 @@ def _fetch_yahoo_chart(symbol: str) -> dict | None:
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     try:
         req = urllib.request.Request(url, headers=headers)
-        with urllib.request.urlopen(req, timeout=4) as resp:
+        with urllib.request.urlopen(req, timeout=1.2) as resp:
             data = json.loads(resp.read().decode("utf-8"))
             result = data.get("chart", {}).get("result", [])
             if not result:
