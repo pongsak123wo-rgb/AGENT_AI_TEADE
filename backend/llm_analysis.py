@@ -24,7 +24,7 @@ from llm_providers import cerebras, gemini, groq
 if os.environ.get("DISABLE_GEMINI") == "1":
     PROVIDERS = [groq, cerebras]
 else:
-    PROVIDERS = [gemini, groq, cerebras]
+    PROVIDERS = [groq, cerebras, gemini]
 
 SYSTEM_PROMPT = """คุณคือ Technical Analysis Agent ในทีมเทรด หน้าที่คือตัดสินว่ามี setup เทรดที่น่าสนใจหรือไม่
 จากค่า indicator ที่ให้มา (เป็นข้อเท็จจริง ห้ามสมมติค่าเอง) — มี RSI, EMA fast/slow (เทรนด์ระยะสั้น),
