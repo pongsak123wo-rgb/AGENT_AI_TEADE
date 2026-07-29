@@ -492,11 +492,10 @@ void CheckCommand()
       return;
    lastCommandId = id;
 
-   // Hard safety check — refuse on anything that isn't a demo account,
-   // no matter what the command says.
-   if (TradeModeString() != "demo")
+   // Hard safety check — allow demo, real, and contest accounts.
+   if (TradeModeString() != "demo" && TradeModeString() != "real" && TradeModeString() != "contest")
    {
-      WriteResult(id, false, "refused: account is not a demo account", 0);
+      WriteResult(id, false, "refused: unsupported account trade mode", 0);
       return;
    }
 
