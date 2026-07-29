@@ -23,19 +23,25 @@ def generate(system_prompt: str, user_prompt: str) -> str | None:
     except Exception:
         return None
 
+    models = ["gemma-4-31b", "gpt-oss-120b", "zai-glm-4.7"]
+
     try:
         client = Cerebras(api_key=api_key)
-        response = client.chat.completions.create(
-            model="llama3.1-8b",
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_prompt},
-            ],
-            max_tokens=1500,
-            temperature=0,
-        )
-        if response and response.choices:
-            return response.choices[0].message.content
+        for m in models:
+            try:
+                response = client.chat.completions.create(
+                    model=m,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    max_tokens=1500,
+                    temperature=0,
+                )
+                if response and response.choices and response.choices[0].message.content:
+                    return response.choices[0].message.content
+            except Exception as e:
+                continue
     except Exception as err:
         print(f"[Cerebras Error]: {err}")
         return None
