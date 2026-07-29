@@ -529,6 +529,9 @@ def send_test_notification():
         "✅ การเชื่อมต่อระบบแจ้งเตือน Telegram สำเร็จเรียบร้อยแล้ว!\n"
         "พร้อมรับการแจ้งเตือนเปิด/ปิดไม้ออเดอร์เข้ามือถือทันทีครับ 📱💎"
     )
+    return {"ok": ok, "detail": detail, "message": "ส่งข้อความทดสอบสำเร็จ!" if ok else f"ส่งข้อความไม่สำเร็จ: {detail}"}
+
+
 import stoch_swing_engine
 
 
