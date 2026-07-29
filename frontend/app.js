@@ -176,12 +176,14 @@ function renderIndicatorsPanel(symbol, indicators) {
     .join("");
 }
 
+let selectedStochSymbol = "XAUUSD";
+
 async function loadStochSwings() {
   const panel = document.getElementById("stoch-swings-panel");
   if (!panel) return;
   try {
     const t = authToken || localStorage.getItem(AUTH_KEY) || localStorage.getItem("dashboard_token") || "Po123456-";
-    const res = await fetch(`${API}/stoch-swings/status?symbol=XAUUSD&token=${encodeURIComponent(t)}`);
+    const res = await fetch(`${API}/stoch-swings/status?symbol=${encodeURIComponent(selectedStochSymbol)}&token=${encodeURIComponent(t)}`);
     if (!res.ok) return;
     const data = await res.json();
     const sa = data.stoch_analysis || {};
@@ -190,7 +192,22 @@ async function loadStochSwings() {
     const latestK = (sa.latest_k !== undefined && sa.latest_k !== null) ? sa.latest_k : "-";
     const latestD = (sa.latest_d !== undefined && sa.latest_d !== null) ? sa.latest_d : "-";
 
+    const symbols = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "EURJPY", "GBPJPY", "BTCUSD"];
+    const tabsHtml = `
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.08);">
+        ${symbols.map(sym => `
+          <button onclick="selectStochSymbol('${sym}')" style="
+            padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s;
+            border:1px solid ${selectedStochSymbol === sym ? 'var(--green)' : 'rgba(255,255,255,0.15)'};
+            background:${selectedStochSymbol === sym ? 'rgba(14,203,129,0.15)' : 'rgba(255,255,255,0.04)'};
+            color:${selectedStochSymbol === sym ? 'var(--green)' : '#cbd5e1'};
+          ">${sym}</button>
+        `).join('')}
+      </div>
+    `;
+
     const rows = [
+      ["สินทรัพย์ที่เลือก", `<strong style="color:var(--accent); font-size:14px;">${data.symbol || selectedStochSymbol}</strong>`],
       ["เครื่องยนต์", `<strong style="color:var(--green)">${data.engine || "Stochastic (9,3,3) + RSI (14) Swing Engine"}</strong>`],
       ["Stoch (9,3,3) K/D", `K: ${latestK} | D: ${latestD}`],
       ["โครงสร้างขาขึ้น (Uptrend)", up.valid ? `<span style="color:var(--green)">สมบูรณ์ (L2 > L1)</span>` : `<span style="color:#a0aec0">ยังไม่เกิด</span>`],
@@ -202,14 +219,17 @@ async function loadStochSwings() {
       ["ไทม์เฟรม AI เลือก", `<span style="color:var(--accent)">H1+M5 (คะแนนสูงสุด)</span>`],
     ];
 
-    panel.innerHTML = rows.map(([label, value]) => `<div class="meter-row"><span>${label}</span><span>${value}</span></div>`).join("");
+    const contentHtml = rows.map(([label, value]) => `<div class="meter-row"><span>${label}</span><span>${value}</span></div>`).join("");
+    panel.innerHTML = tabsHtml + contentHtml;
   } catch (e) {
     console.error("Stoch Swings UI Error:", e);
   }
 }
 
-setInterval(loadStochSwings, 5000);
-loadStochSwings();
+function selectStochSymbol(sym) {
+  selectedStochSymbol = sym;
+  loadStochSwings();
+}
 
 function addMessage(msg, isHistory = false) {
   const time = new Date().toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit" });
