@@ -195,7 +195,14 @@ async def run_cycle():
 
     # PHASE 2 (paid): an LTF reached an HTF zone aligned with trend — worth
     # asking the LLM now. This is where tokens get spent.
-    notifier.notify_stoch_swing(symbol, mtf["reason"], snapshot["price"])
+    global last_stoch_notify
+    if "last_stoch_notify" not in globals():
+        last_stoch_notify = {}
+    now_ts = time.time()
+    if now_ts - last_stoch_notify.get(symbol, 0) > 300:  # 5-minute cooldown per symbol
+        last_stoch_notify[symbol] = now_ts
+        notifier.notify_stoch_swing(symbol, mtf["reason"], snapshot["price"])
+
     await broadcast(AgentMessage(agent="technical", text=f"🎯 {symbol}: {mtf['reason']} → เรียก AI วิเคราะห์", kind="info",
                                  data={"mtf": mtf, "symbol": symbol}))
     technical = await asyncio.to_thread(technical_agent.reason, snapshot["symbol"], indicator_pre)

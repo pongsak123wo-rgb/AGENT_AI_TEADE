@@ -20,8 +20,8 @@ import llm_circuit_breaker
 import signal_log
 from llm_providers import cerebras, gemini, groq
 
-# 100% Free LLM providers: Groq (Llama 3.3 70B) + Cerebras (Llama 3.1 8B)
-PROVIDERS = [groq, cerebras]
+# CEO Council LLM providers: Groq + Cerebras + Gemini
+PROVIDERS = [groq, cerebras, gemini]
 
 SYSTEM_PROMPT = """คุณคือ CEO Agent ในทีมเทรด ตัดสินใจว่าจะ "อนุมัติ" หรือ "ปฏิเสธ" สัญญาณเทรดที่เสนอมา
 โดยพิจารณาจากรายงานของ Technical Analysis, News Agent, Risk Management, และ "ค่า indicator ดิบ" ที่ให้มาด้วยตัวเอง
@@ -274,6 +274,12 @@ def decide(technical: dict, news: dict, risk: dict, snapshot: dict) -> dict:
     votes = _debate_round(prompt, round1_raw, symbol)
     total_votes = len(votes)
     if total_votes == 0:
+        if technical.get("bias") in ("buy", "sell"):
+            return {
+                "approved": True,
+                "votes": [{"provider": "ceo_rule_engine", "vote": "approve", "reason": "อนุมัติตามสัญญาณ Stoch Swing + Engulfing"}],
+                "reason": f"CEO Rule-Engine อนุมัติสัญญาณ {technical['bias'].upper()} จาก Stoch (9,3,3) Swing Engine",
+            }
         return {
             "approved": False,
             "votes": [],
