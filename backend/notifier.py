@@ -145,3 +145,20 @@ def notify_trade_closed(
     )
 
     send_telegram_async(msg)
+
+
+def notify_stoch_swing(symbol: str, reason: str, price: float | None = None) -> None:
+    """Send rich Telegram alert when Stoch (9,3,3) Swing / Zone setup fires."""
+    is_buy = "ขึ้น" in reason or "BUY" in reason.upper() or "l2 > l1" in reason.lower()
+    icon = "🌊 🟢 <b>[STOCH SWING / SETUP FIRED]</b>" if is_buy else "🌊 🔴 <b>[STOCH SWING / SETUP FIRED]</b>"
+    p_str = f"<code>{price:,.5f}</code>" if price else "N/A"
+
+    msg = (
+        f"{icon}\n\n"
+        f"📌 <b>สินทรัพย์:</b> #{symbol}\n"
+        f"💵 <b>ราคาปัจจุบัน:</b> {p_str}\n"
+        f"💡 <b>รายละเอียด:</b> {reason}\n\n"
+        f"🤖 <b>สถานะ AI:</b> กำลังดึงสมองกล AI ประเมินอนุมัติยิงไม้ออเดอร์เข้า MT5..."
+    )
+    send_telegram_async(msg)
+
