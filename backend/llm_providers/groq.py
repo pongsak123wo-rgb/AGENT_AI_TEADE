@@ -14,7 +14,7 @@ def generate(system_prompt: str, user_prompt: str) -> str | None:
             load_dotenv(e, override=True)
     load_dotenv(override=True)
 
-    api_key = os.environ.get("GROQ_API_KEY")
+    api_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not api_key:
         return None
 
@@ -26,8 +26,8 @@ def generate(system_prompt: str, user_prompt: str) -> str | None:
     models = [
         "llama-3.3-70b-versatile",
         "llama-3.1-8b-instant",
-        "gemma2-9b-it",
-        "mixtral-8x7b-32768",
+        "deepseek-r1-distill-llama-70b",
+        "qwen-2.5-32b",
     ]
 
     client = Groq(api_key=api_key)
