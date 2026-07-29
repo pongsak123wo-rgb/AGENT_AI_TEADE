@@ -73,9 +73,6 @@ MACD cross, Bollinger Bands position, **ATR** (ใช้วัดความผ
 def _call_first_available(system_prompt: str, user_message: str) -> tuple[str | None, str | None]:
     for provider in PROVIDERS:
         if llm_circuit_breaker.is_in_cooldown(provider.NAME):
-            # Known to be failing right now (e.g. gemini's free-tier
-            # quota hard-exhausted) — skip straight past it instead of
-            # paying a full request+429 round-trip every single call.
             continue
         try:
             raw = provider.generate(system_prompt, user_message)
@@ -85,6 +82,17 @@ def _call_first_available(system_prompt: str, user_message: str) -> tuple[str | 
         if raw is not None:
             llm_circuit_breaker.record_success(provider.NAME)
             return raw, provider.NAME
+
+    # Fallback retry ignoring cooldowns
+    for provider in PROVIDERS:
+        try:
+            raw = provider.generate(system_prompt, user_message)
+            if raw is not None:
+                llm_circuit_breaker.record_success(provider.NAME)
+                return raw, provider.NAME
+        except Exception:
+            pass
+
     return None, None
 
 
