@@ -570,12 +570,18 @@ def get_stoch_swings_status(symbol: str = "XAUUSD"):
                 closes.append(float(bar.get("close") or bar.get("c") or 0))
 
     if not closes or len(closes) < 15:
-        # Relative percentage variation around real live price (never negative)
-        px = float(data_agent.prices.get(sym) or (1.138 if "USD" in sym and "XAU" not in sym and "BTC" not in sym else 2650.0))
-        import math
-        closes = [px * (1.0 + 0.0015 * math.sin(i * 0.25)) for i in range(60)]
-        highs = [p * 1.0008 for p in closes]
-        lows = [p * 0.9992 for p in closes]
+        return {
+            "symbol": sym,
+            "engine": "Stochastic (9,3,3) + RSI (14) Dual-Side Engine",
+            "stoch_analysis": {
+                "ready": False,
+                "reason": "กำลังรอข้อมูลแท่งเทียน Real-Time แท้จากโปรแกรม MT5 Terminal...",
+                "latest_k": "-",
+                "latest_d": "-",
+                "uptrend": {"valid": False, "l1_price": None, "h1_price": None, "l2_price": None},
+                "downtrend": {"valid": False, "h1_price": None, "l1_price": None, "h2_price": None}
+            }
+        }
 
     swings = stoch_swing_engine.detect_stoch_swings(highs, lows, closes)
     return {
