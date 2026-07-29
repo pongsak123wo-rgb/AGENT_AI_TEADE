@@ -537,25 +537,49 @@ import stoch_swing_engine
 
 @app.get("/stoch-swings/status")
 def get_stoch_swings_status(symbol: str = "XAUUSD"):
-    live = data_agent.prices.get(symbol.upper(), 4025.0)
-    import math
-    np_prices = [live + 5.0 * math.sin(i * 0.3) for i in range(60)]
-    ohlc = {
-        "o": [np_prices[i-1] if i > 0 else np_prices[0] for i in range(60)],
-        "h": [p + 1.5 for p in np_prices],
-        "l": [p - 1.5 for p in np_prices],
-        "c": np_prices,
-    }
-    swings = stoch_swing_engine.detect_stoch_swings(ohlc["h"], ohlc["l"], ohlc["c"])
+    sym = symbol.upper()
+    candles = None
+
+    # Try MT5 Direct
+    if mt5_direct.available():
+        snap = mt5_direct.get_snapshot()
+        if snap and "candles" in snap and sym in snap["candles"]:
+            candles = snap["candles"][sym]
+
+    # Try MT5 EA Bridge
+    if not candles:
+        snap = mt5_bridge.read_snapshot()
+        if snap and "candles" in snap and sym in snap["candles"]:
+            candles = snap["candles"][sym]
+
+    # Fallback to DataAgent
+    if not candles:
+        tick_data = data_agent.tick(sym)
+        candles = tick_data.get("candles")
+
+    if candles and len(candles.get("c", [])) >= 15:
+        highs = candles["h"]
+        lows = candles["l"]
+        closes = candles["c"]
+    else:
+        # Relative percentage variation around real live price (never negative)
+        px = data_agent.prices.get(sym, 1.138 if "USD" in sym and "XAU" not in sym and "BTC" not in sym else 2650.0)
+        import math
+        closes = [px * (1.0 + 0.0015 * math.sin(i * 0.25)) for i in range(60)]
+        highs = [p * 1.0008 for p in closes]
+        lows = [p * 0.9992 for p in closes]
+
+    swings = stoch_swing_engine.detect_stoch_swings(highs, lows, closes)
     return {
-        "symbol": symbol.upper(),
-        "engine": "Stochastic (9,3,3) + RSI (14) Swing Engine",
+        "symbol": sym,
+        "engine": "Stochastic (9,3,3) + RSI (14) Dual-Side Engine",
         "rules": [
             "OB (>80) & OS (<20) Strict Zone Swings",
             "Uptrend Chain: OS1 (L1) -> OB1 (H1) -> OS2 (L2) with L2 > L1",
-            "Major Support anchored at OS1 (L1)",
-            "Multi-Bar Bullish Engulfing Confirmation at OS2",
-            "TP1: Previous High (H1), TP2: Fibo Extension 161.8%",
+            "Downtrend Chain: OB1 (H1) -> OS1 (L1) -> OB2 (H2) with H2 < H1",
+            "Major Support anchored at OS1 (L1), Major Resistance at OB1 (H1)",
+            "Multi-Bar Engulfing Confirmation (Buy & Sell)",
+            "TP1: Previous High (H1) / Low (L1), TP2: Fibo Extension 161.8%",
             "Emergency DCA Layer 2: Fibo 38.2% drop",
             "Emergency Close: OB2 with H2 < H1",
             "Hard Cut Loss: Price breaks OS1 (L3 < L1)",
