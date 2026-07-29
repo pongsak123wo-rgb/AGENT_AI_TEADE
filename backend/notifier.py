@@ -49,9 +49,11 @@ def send_telegram_sync(text: str) -> tuple[bool, str]:
     }
 
     try:
+        import ssl
+        ctx = ssl._create_unverified_context()
         data = json.dumps(payload).encode("utf-8")
         req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=10) as resp:
+        with urllib.request.urlopen(req, context=ctx, timeout=10) as resp:
             res_json = json.loads(resp.read().decode("utf-8"))
             ok = res_json.get("ok", False)
             return ok, "Success" if ok else f"Telegram API error: {res_json}"
