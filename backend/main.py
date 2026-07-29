@@ -581,7 +581,17 @@ def get_stoch_swings_status(symbol: str = "XAUUSD"):
         highs = [p * 1.0008 for p in closes]
         lows = [p * 0.9992 for p in closes]
 
-    swings = stoch_swing_engine.detect_stoch_swings(highs, lows, closes)
+    try:
+        swings = stoch_swing_engine.detect_stoch_swings(highs, lows, closes)
+    except Exception as err:
+        swings = {
+            "ready": False,
+            "reason": f"คำนวณสวิง Stoch (9,3,3) ขัดข้อง ({err})",
+            "latest_k": "-",
+            "latest_d": "-",
+            "uptrend": {"valid": False, "l1_price": None, "h1_price": None, "l2_price": None},
+            "downtrend": {"valid": False, "h1_price": None, "l1_price": None, "h2_price": None}
+        }
     return {
         "symbol": sym,
         "engine": "Stochastic (9,3,3) + RSI (14) Dual-Side Engine",
