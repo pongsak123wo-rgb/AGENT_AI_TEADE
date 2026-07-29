@@ -557,13 +557,21 @@ def get_stoch_swings_status(symbol: str = "XAUUSD"):
         tick_data = data_agent.tick(sym)
         candles = tick_data.get("candles")
 
-    if candles and len(candles.get("c", [])) >= 15:
-        highs = candles["h"]
-        lows = candles["l"]
-        closes = candles["c"]
-    else:
+    highs, lows, closes = [], [], []
+    if isinstance(candles, dict):
+        highs = [float(x) for x in candles.get("h", [])]
+        lows = [float(x) for x in candles.get("l", [])]
+        closes = [float(x) for x in candles.get("c", [])]
+    elif isinstance(candles, list):
+        for bar in candles:
+            if isinstance(bar, dict):
+                highs.append(float(bar.get("high") or bar.get("h") or 0))
+                lows.append(float(bar.get("low") or bar.get("l") or 0))
+                closes.append(float(bar.get("close") or bar.get("c") or 0))
+
+    if not closes or len(closes) < 15:
         # Relative percentage variation around real live price (never negative)
-        px = data_agent.prices.get(sym, 1.138 if "USD" in sym and "XAU" not in sym and "BTC" not in sym else 2650.0)
+        px = float(data_agent.prices.get(sym) or (1.138 if "USD" in sym and "XAU" not in sym and "BTC" not in sym else 2650.0))
         import math
         closes = [px * (1.0 + 0.0015 * math.sin(i * 0.25)) for i in range(60)]
         highs = [p * 1.0008 for p in closes]
