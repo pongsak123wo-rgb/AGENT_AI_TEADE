@@ -181,31 +181,41 @@ let selectedStochSymbol = "XAUUSD";
 async function loadStochSwings() {
   const panel = document.getElementById("stoch-swings-panel");
   if (!panel) return;
+
+  const symbols = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "EURJPY", "GBPJPY", "BTCUSD"];
+  const tabsHtml = `
+    <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.08);">
+      ${symbols.map(sym => `
+        <button onclick="selectStochSymbol('${sym}')" style="
+          padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s;
+          border:1px solid ${selectedStochSymbol === sym ? 'var(--green)' : 'rgba(255,255,255,0.15)'};
+          background:${selectedStochSymbol === sym ? 'rgba(14,203,129,0.15)' : 'rgba(255,255,255,0.04)'};
+          color:${selectedStochSymbol === sym ? 'var(--green)' : '#cbd5e1'};
+        ">${sym}</button>
+      `).join('')}
+    </div>
+  `;
+
   try {
     const t = authToken || localStorage.getItem(AUTH_KEY) || localStorage.getItem("dashboard_token") || "Po123456-";
     const res = await fetch(`${API}/stoch-swings/status?symbol=${encodeURIComponent(selectedStochSymbol)}&token=${encodeURIComponent(t)}`);
-    if (!res.ok) return;
+    if (!res.ok) {
+      panel.innerHTML = tabsHtml + `<p class="placeholder" style="color:#f43f5e;">⚠️ เกิดข้อผิดพลาดในการโหลดข้อมูล (${res.status})</p>`;
+      return;
+    }
     const data = await res.json();
     const sa = data.stoch_analysis || {};
+
+    if (sa.ready === false) {
+      panel.innerHTML = tabsHtml + `<p class="placeholder" style="color:var(--accent); font-weight:500;">⚡ ${sa.reason || "กำลังรอข้อมูลแท่งเทียนแท้..."}</p>`;
+      return;
+    }
+
     const up = sa.uptrend || {};
     const down = sa.downtrend || {};
 
     const latestK = (sa.latest_k !== undefined && sa.latest_k !== null) ? sa.latest_k : "-";
     const latestD = (sa.latest_d !== undefined && sa.latest_d !== null) ? sa.latest_d : "-";
-
-    const symbols = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "EURJPY", "GBPJPY", "BTCUSD"];
-    const tabsHtml = `
-      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.08);">
-        ${symbols.map(sym => `
-          <button onclick="selectStochSymbol('${sym}')" style="
-            padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s;
-            border:1px solid ${selectedStochSymbol === sym ? 'var(--green)' : 'rgba(255,255,255,0.15)'};
-            background:${selectedStochSymbol === sym ? 'rgba(14,203,129,0.15)' : 'rgba(255,255,255,0.04)'};
-            color:${selectedStochSymbol === sym ? 'var(--green)' : '#cbd5e1'};
-          ">${sym}</button>
-        `).join('')}
-      </div>
-    `;
 
     // Buy (Uptrend) TP Calculations
     const buyTp1 = (up.h1_price != null) ? `${Number(up.h1_price).toFixed(2)}` : "-";
@@ -237,6 +247,7 @@ async function loadStochSwings() {
     panel.innerHTML = tabsHtml + contentHtml;
   } catch (e) {
     console.error("Stoch Swings UI Error:", e);
+    panel.innerHTML = tabsHtml + `<p class="placeholder" style="color:#f43f5e;">⚠️ เกิดข้อผิดพลาดในการโหลดข้อมูล (${e.message})</p>`;
   }
 }
 
