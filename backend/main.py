@@ -538,12 +538,13 @@ import stoch_swing_engine
 @app.get("/stoch-swings/status")
 def get_stoch_swings_status(symbol: str = "XAUUSD"):
     live = data_agent.prices.get(symbol.upper(), 4025.0)
-    # Generate test candle OHLC
+    import math
+    np_prices = [live + 5.0 * math.sin(i * 0.3) for i in range(60)]
     ohlc = {
-        "o": [live - (i * 0.2) for i in range(30, 0, -1)],
-        "h": [live + 2.0 - (i * 0.1) for i in range(30, 0, -1)],
-        "l": [live - 2.0 - (i * 0.2) for i in range(30, 0, -1)],
-        "c": [live - (i * 0.15) for i in range(30, 0, -1)],
+        "o": [np_prices[i-1] if i > 0 else np_prices[0] for i in range(60)],
+        "h": [p + 1.5 for p in np_prices],
+        "l": [p - 1.5 for p in np_prices],
+        "c": np_prices,
     }
     swings = stoch_swing_engine.detect_stoch_swings(ohlc["h"], ohlc["l"], ohlc["c"])
     return {

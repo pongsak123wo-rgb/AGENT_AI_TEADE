@@ -72,13 +72,21 @@ def detect_stoch_swings(highs: list[float], lows: list[float], closes: list[floa
                     "price_close": closes[i]
                 })
 
+    latest_k_val = round(k_line[-1], 2) if k_line else 50.0
+    latest_d_val = round(d_line[-1], 2) if d_line else 50.0
+
     if len(swings) < 3:
         return {
             "ready": True,
+            "latest_k": latest_k_val,
+            "latest_d": latest_d_val,
             "valid_structure": False,
             "bias": "none",
             "reason": "ยังสะสมรอบสวิง OB/OS ไม่ครบ 3 สวิง",
-            "swings_count": len(swings)
+            "swings_count": len(swings),
+            "uptrend": {"valid": False, "l1_price": None, "h1_price": None, "l2_price": None},
+            "downtrend": {"valid": False, "h1_price": None, "l1_price": None, "h2_price": None},
+            "all_swings": swings
         }
 
     # Separate into OS and OB sequences
