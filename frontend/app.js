@@ -559,11 +559,13 @@ loadExpectancy();
 setInterval(loadExpectancy, 10000);
 
 // --- ALLIN Confluence Engine Panel ---
+let selectAllinSymbol = "XAUUSD";
+
 async function loadAllinStatus() {
   const panel = document.getElementById("allin-panel");
   if (!panel) return;
   try {
-    const res = await fetch(`${API}/allin/status?symbol=XAUUSD`);
+    const res = await fetch(`${API}/allin/status?symbol=${encodeURIComponent(selectAllinSymbol)}`);
     const data = await res.json();
     if (!data || data.status !== "active") {
       panel.innerHTML = '<p class="placeholder">ไม่มีข้อมูล ALLIN Scoring</p>';
@@ -576,25 +578,44 @@ async function loadAllinStatus() {
     const scoreColor = isApprove ? "#10b981" : "#ef4444";
     const statusText = isApprove ? "APPROVED (พร้อมออกไม้)" : "WAITING (เฝ้าโซนคัดเกรด)";
 
+    const symbols = ["XAUUSD", "EURUSD", "GBPUSD", "USDJPY", "EURJPY", "GBPJPY", "BTCUSD"];
+    const tabsHtml = `
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.08);">
+        ${symbols.map(sym => `
+          <button onclick="selectAllinSymbolTab('${sym}')" style="
+            padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; transition:all 0.2s;
+            border:1px solid ${selectAllinSymbol === sym ? 'var(--accent)' : 'rgba(255,255,255,0.15)'};
+            background:${selectAllinSymbol === sym ? 'rgba(56,189,248,0.15)' : 'rgba(255,255,255,0.04)'};
+            color:${selectAllinSymbol === sym ? 'var(--accent)' : '#cbd5e1'};
+          ">${sym}</button>
+        `).join('')}
+      </div>
+    `;
+
     const breakdownHtml = (sc.breakdown || [])
       .map(b => `<div style="font-size:12px; color:#cbd5e1; margin-top:3px;">• ${b}</div>`)
       .join("");
 
-    panel.innerHTML = `
+    panel.innerHTML = tabsHtml + `
       <div style="display:flex; justify-content:space-between; align-items:center;">
         <span style="font-weight:600; color:#f8fafc;">${data.symbol} Confluence Score</span>
-        <span style="font-size:16px; font-weight:700; color:${scoreColor}">${scoreVal} / 100 คะแนน</span>
+        <span style="font-size:18px; font-weight:700; color:${scoreColor}">${scoreVal} / 100 คะแนน</span>
       </div>
-      <div style="margin-top:6px; font-size:13px; font-weight:600; color:${scoreColor}">
+      <div style="margin-top:4px; font-size:12px; font-weight:600; color:${scoreColor}">
         สถานะ: ${statusText}
       </div>
-      <div style="margin-top:8px; border-top:1px solid rgba(255,255,255,0.08); pt:6px;">
-        ${breakdownHtml}
+      <div style="margin-top:8px; border-top:1px solid rgba(255,255,255,0.05); padding-top:6px;">
+        ${breakdownHtml.length > 0 ? breakdownHtml : '<div style="font-size:12px; color:#94a3b8;">เฝ้ารอเงื่อนไข Confluence...</div>'}
       </div>
     `;
   } catch (e) {
-    panel.innerHTML = '<p class="placeholder">เชื่อมต่อ backend ไม่ได้</p>';
+    panel.innerHTML = '<p class="placeholder">โหลดข้อมูล ALLIN Scoring ไม่สำเร็จ</p>';
   }
+}
+
+function selectAllinSymbolTab(sym) {
+  selectAllinSymbol = sym;
+  loadAllinStatus();
 }
 
 loadAllinStatus();
