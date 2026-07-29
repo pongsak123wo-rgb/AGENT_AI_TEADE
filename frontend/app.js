@@ -188,6 +188,7 @@ async function loadStochSwings() {
     const data = await res.json();
     const sa = data.stoch_analysis || {};
     const up = sa.uptrend || {};
+    const down = sa.downtrend || {};
 
     const latestK = (sa.latest_k !== undefined && sa.latest_k !== null) ? sa.latest_k : "-";
     const latestD = (sa.latest_d !== undefined && sa.latest_d !== null) ? sa.latest_d : "-";
@@ -206,16 +207,29 @@ async function loadStochSwings() {
       </div>
     `;
 
+    // Buy (Uptrend) TP Calculations
+    const buyTp1 = (up.h1_price != null) ? `${Number(up.h1_price).toFixed(2)}` : "-";
+    const buyTp2 = (up.h1_price != null && up.l2_price != null) ? `${(Number(up.l2_price) + Math.abs(Number(up.h1_price) - Number(up.l2_price))*1.618).toFixed(2)}` : "-";
+
+    // Sell (Downtrend) TP Calculations
+    const sellTp1 = (down.l1_price != null) ? `${Number(down.l1_price).toFixed(2)}` : "-";
+    const sellTp2 = (down.l1_price != null && down.h2_price != null) ? `${(Number(down.h2_price) - Math.abs(Number(down.h2_price) - Number(down.l1_price))*1.618).toFixed(2)}` : "-";
+
     const rows = [
       ["สินทรัพย์ที่เลือก", `<strong style="color:var(--accent); font-size:14px;">${data.symbol || selectedStochSymbol}</strong>`],
-      ["เครื่องยนต์", `<strong style="color:var(--green)">${data.engine || "Stochastic (9,3,3) + RSI (14) Swing Engine"}</strong>`],
+      ["เครื่องยนต์", `<strong style="color:var(--green)">${data.engine || "Stochastic (9,3,3) + RSI (14) Dual-Side Engine"}</strong>`],
       ["Stoch (9,3,3) K/D", `K: ${latestK} | D: ${latestD}`],
-      ["โครงสร้างขาขึ้น (Uptrend)", up.valid ? `<span style="color:var(--green)">สมบูรณ์ (L2 > L1)</span>` : `<span style="color:#a0aec0">ยังไม่เกิด</span>`],
-      ["🛡️ แนวรับสำคัญ (OS1 Support)", (up.l1_price != null) ? `<strong style="color:#38bdf8">${Number(up.l1_price).toFixed(2)}</strong>` : "-"],
-      ["🎯 แนวต้านสำคัญ (OB1 Resistance)", (up.h1_price != null) ? `<strong style="color:#f43f5e">${Number(up.h1_price).toFixed(2)}</strong>` : "-"],
-      ["เป้า TP1 (High เดิม)", (up.h1_price != null) ? `${Number(up.h1_price).toFixed(2)}` : "-"],
-      ["เป้า TP2 (Fibo 161.8%)", (up.h1_price != null && up.l2_price != null) ? `${(Number(up.l2_price) + Math.abs(Number(up.h1_price) - Number(up.l2_price))*1.618).toFixed(2)}` : "-"],
-      ["Multi-Bar Engulfing", `<span style="color:var(--green)">ตรวจจับอัตโนมัติ</span>`],
+      ["--- โครงสร้างฝั่ง BUY ---", `<strong style="color:#10b981">🟢 ขาขึ้น (Uptrend)</strong>`],
+      ["สถานะ BUY (L2 > L1)", up.valid ? `<span style="color:#10b981; font-weight:600;">สมบูรณ์ (L2 > L1)</span>` : `<span style="color:#94a3b8">ยังไม่เกิด</span>`],
+      ["🛡️ แนวรับสำคัญ (OS1 Support / SL)", (up.l1_price != null) ? `<strong style="color:#38bdf8">${Number(up.l1_price).toFixed(2)}</strong>` : "-"],
+      ["🎯 เป้า BUY TP1 (High เดิม H1)", buyTp1],
+      ["🎯 เป้า BUY TP2 (Fibo 161.8%)", buyTp2],
+      ["--- โครงสร้างฝั่ง SELL ---", `<strong style="color:#ef4444">🔴 ขาลง (Downtrend)</strong>`],
+      ["สถานะ SELL (H2 < H1)", down.valid ? `<span style="color:#ef4444; font-weight:600;">สมบูรณ์ (H2 < H1)</span>` : `<span style="color:#94a3b8">ยังไม่เกิด</span>`],
+      ["🛡️ แนวต้านสำคัญ (OB1 Resistance / SL)", (down.h1_price != null) ? `<strong style="color:#f43f5e">${Number(down.h1_price).toFixed(2)}</strong>` : "-"],
+      ["🎯 เป้า SELL TP1 (Low เดิม L1)", sellTp1],
+      ["🎯 เป้า SELL TP2 (Fibo 161.8%)", sellTp2],
+      ["Multi-Bar Engulfing", `<span style="color:var(--green)">ตรวจจับอัตโนมัติ 2 ฝั่ง</span>`],
       ["ไทม์เฟรม AI เลือก", `<span style="color:var(--accent)">H1+M5 (คะแนนสูงสุด)</span>`],
     ];
 
