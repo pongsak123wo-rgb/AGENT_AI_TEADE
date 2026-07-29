@@ -14,7 +14,7 @@ def generate(system_prompt: str, user_prompt: str) -> str | None:
             load_dotenv(e, override=True)
     load_dotenv(override=True)
 
-    api_key = os.environ.get("CEREBRAS_API_KEY")
+    api_key = os.environ.get("CEREBRAS_API_KEY", "").strip()
     if not api_key:
         return None
 
@@ -23,7 +23,7 @@ def generate(system_prompt: str, user_prompt: str) -> str | None:
     except Exception:
         return None
 
-    models = ["gemma-4-31b", "gpt-oss-120b", "zai-glm-4.7"]
+    models = ["llama-3.3-70b", "llama3.1-70b", "llama3.1-8b"]
 
     try:
         client = Cerebras(api_key=api_key)

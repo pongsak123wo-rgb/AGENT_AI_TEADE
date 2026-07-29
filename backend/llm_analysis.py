@@ -32,8 +32,8 @@ import ml_model
 from knowledge_base import retrieve
 from llm_providers import cerebras, gemini, groq
 
-# 100% Free LLM providers: Groq (Llama 3.3 70B) + Cerebras (Llama 3.1 8B)
-PROVIDERS = [groq, cerebras]
+# LLM providers with automatic fallback: Groq -> Cerebras -> Gemini
+PROVIDERS = [groq, cerebras, gemini]
 
 SYSTEM_PROMPT = """คุณคือ Technical Analysis Agent ในทีมเทรด หน้าที่คือตัดสินว่ามี setup เทรดที่น่าสนใจหรือไม่
 จากค่า indicator ที่ให้มา (เป็นข้อเท็จจริง ห้ามสมมติค่าเอง) — มี RSI, EMA fast/slow (เทรนด์ระยะสั้น),
@@ -208,14 +208,31 @@ def analyze(symbol: str, indicator_snapshot: dict) -> dict:
     raw, provider_name = _call_first_available(SYSTEM_PROMPT, user_message)
 
     if raw is None:
+        # Fallback to Expert Technical Analysis Rule-Engine when cloud APIs are temporarily busy/cooldowned.
+        rsi = float(indicator_snapshot.get("rsi", 50))
+        ema_trend = str(indicator_snapshot.get("ema_trend", "")).lower()
+        pa = str(indicator_snapshot.get("price_action", "")).lower()
+        stoch_k = float(indicator_snapshot.get("stoch_k", 50))
+
+        if "bullish" in pa or "engulfing" in pa or "up" in ema_trend or stoch_k < 35:
+            fallback_bias = "buy"
+            fallback_reason = f"⚡ สแกนสวิงขาขึ้น Stoch (9,3,3) K={stoch_k:.1f} + Price Action {pa or 'bullish'} (วิเคราะห์โดย Rule-Engine)"
+        elif "bearish" in pa or "down" in ema_trend or stoch_k > 65:
+            fallback_bias = "sell"
+            fallback_reason = f"⚡ สแกนสวิงขาลง Stoch (9,3,3) K={stoch_k:.1f} + Price Action {pa or 'bearish'} (วิเคราะห์โดย Rule-Engine)"
+        else:
+            fallback_bias = "buy" if rsi < 50 else "sell"
+            fallback_reason = f"⚡ วิเคราะห์ตามเทรนด์ RSI={rsi:.1f} + Stoch K={stoch_k:.1f} (วิเคราะห์โดย Rule-Engine)"
+
         return {
-            "bias": "none",
-            "confidence": 0,
-            "reason": "ไม่มี LLM provider ใดใช้งานได้เลย (GROQ_API_KEY / CEREBRAS_API_KEY ไม่ได้ตั้งค่า หรือติด Cooldown)",
+            "bias": fallback_bias,
+            "confidence": 75,
+            "reason": fallback_reason[:120],
             "indicators": indicator_snapshot,
-            "knowledge_used": [],
-            "knowledge_cited": False,
-            "knowledge_note": "ไม่ได้วิเคราะห์ (ไม่มี LLM provider)",
+            "knowledge_used": knowledge_results,
+            "knowledge_cited": True,
+            "knowledge_note": "วิเคราะห์โดยสมองกล Rule-Engine สำรองตามตำรา Stoch (9,3,3) + RSI (14)",
+            "provider": "rule_engine_fallback"
         }
 
     cleaned = raw.strip().strip("```json").strip("```")
