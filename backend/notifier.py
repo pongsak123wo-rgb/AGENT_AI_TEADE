@@ -20,17 +20,25 @@ if _backend_env.exists():
 
 
 def _get_config() -> tuple[str | None, str | None]:
+    _e1 = Path(__file__).parent / ".env"
+    _e2 = Path(__file__).parent.parent / ".env"
+    if _e1.exists():
+        load_dotenv(_e1)
+    if _e2.exists():
+        load_dotenv(_e2)
+    load_dotenv()
     token = os.environ.get("TELEGRAM_BOT_TOKEN", "").strip()
     chat_id = os.environ.get("TELEGRAM_CHAT_ID", "").strip()
     return token if token else None, chat_id if chat_id else None
 
 
-def send_telegram_sync(text: str) -> bool:
+def send_telegram_sync(text: str) -> tuple[bool, str]:
     """Send text message synchronously via Telegram Bot API."""
     token, chat_id = _get_config()
     if not token or not chat_id:
-        print("[Notifier] Telegram not configured (missing TELEGRAM_BOT_TOKEN or TELEGRAM_CHAT_ID)")
-        return False
+        msg = f"Telegram not configured (token={bool(token)}, chat_id={bool(chat_id)})"
+        print(f"[Notifier] {msg}")
+        return False, msg
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
     payload = {
@@ -45,10 +53,12 @@ def send_telegram_sync(text: str) -> bool:
         req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"})
         with urllib.request.urlopen(req, timeout=10) as resp:
             res_json = json.loads(resp.read().decode("utf-8"))
-            return res_json.get("ok", False)
+            ok = res_json.get("ok", False)
+            return ok, "Success" if ok else f"Telegram API error: {res_json}"
     except Exception as e:
+        msg = f"HTTP Error: {e}"
         print(f"[Notifier] Failed to send Telegram message: {e}")
-        return False
+        return False, msg
 
 
 def send_telegram_async(text: str) -> None:

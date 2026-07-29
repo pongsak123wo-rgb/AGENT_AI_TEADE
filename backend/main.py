@@ -524,12 +524,12 @@ def get_notifier_status():
 
 @app.post("/notifier/test")
 def send_test_notification():
-    ok = notifier.send_telegram_sync(
+    ok, detail = notifier.send_telegram_sync(
         "🚀 <b>Trading Room AI — Telegram Test Alert</b>\n\n"
         "✅ การเชื่อมต่อระบบแจ้งเตือน Telegram สำเร็จเรียบร้อยแล้ว!\n"
         "พร้อมรับการแจ้งเตือนเปิด/ปิดไม้ออเดอร์เข้ามือถือทันทีครับ 📱💎"
     )
-    return {"ok": ok, "message": "ส่งข้อความทดสอบสำเร็จ!" if ok else "ส่งข้อความไม่สำเร็จ (โปรดตรวจสอบ TOKEN / CHAT_ID)"}
+    return {"ok": ok, "detail": detail, "message": "ส่งข้อความทดสอบสำเร็จ!" if ok else f"ส่งข้อความไม่สำเร็จ: {detail}"}
 
 
 @app.get("/kill-switch")
