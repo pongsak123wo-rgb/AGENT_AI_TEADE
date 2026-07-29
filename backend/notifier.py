@@ -80,14 +80,18 @@ def notify_trade_opened(
     risk_pct: float | None = None,
     score: int | None = None,
     reason: str | None = None,
+    major_support: float | None = None,
+    major_resistance: float | None = None,
 ) -> None:
-    """Send rich Telegram alert for new open trade."""
+    """Send rich Telegram alert for new open trade with Major Support & Resistance levels."""
     action_upper = str(action).upper()
     icon = "🟢 <b>[BUY ORDER]</b>" if "BUY" in action_upper else "🔴 <b>[SELL ORDER]</b>"
     sl_str = f"{sl:,.5f}" if sl else "N/A"
     tp_str = f"{tp:,.5f}" if tp else "N/A"
     risk_str = f"{risk_pct:.2f}%" if risk_pct is not None else "N/A"
     score_str = f"{score}/100" if score is not None else "N/A"
+    sup_str = f"{major_support:,.5f}" if major_support else "N/A"
+    res_str = f"{major_resistance:,.5f}" if major_resistance else "N/A"
 
     msg = (
         f"{icon} <b>เปิดออเดอร์ใหม่เข้า MT5 สำเร็จ!</b>\n\n"
@@ -95,6 +99,8 @@ def notify_trade_opened(
         f"🎫 <b>Ticket:</b> #{ticket}\n"
         f"📊 <b>ประเภท:</b> {action_upper} {volume:.2f} Lot\n"
         f"💵 <b>ราคาเข้า (Entry):</b> <code>{price_open:,.5f}</code>\n"
+        f"🛡️ <b>แนวรับสำคัญ (OS1 Support):</b> <code>{sup_str}</code>\n"
+        f"🎯 <b>แนวต้านสำคัญ (OB1 Resistance):</b> <code>{res_str}</code>\n"
         f"🛑 <b>Stop Loss (SL):</b> <code>{sl_str}</code>\n"
         f"🎯 <b>Take Profit (TP):</b> <code>{tp_str}</code>\n"
         f"🛡️ <b>ความเสี่ยง (Risk):</b> {risk_str}\n"
