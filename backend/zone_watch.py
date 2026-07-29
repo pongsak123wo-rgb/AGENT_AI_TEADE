@@ -118,8 +118,8 @@ def should_engage(price: float, indicators: dict, zones: list[dict], atr: float 
 
     Engage (spend the LLM) when EITHER:
     - price is currently at a key zone (multi-TF), OR
-    - a fresh structure break (BOS/CHoCH) just printed — that's an
-      actionable event on its own even if price isn't sitting in a zone.
+    - a fresh structure break (BOS/CHoCH) just printed, OR
+    - Stoch (9,3,3) Swing Engine formed a valid Uptrend/Downtrend with Multi-Bar Engulfing (Trend Following)
 
     Otherwise: keep watching for free.
     """
@@ -128,6 +128,22 @@ def should_engage(price: float, indicators: dict, zones: list[dict], atr: float 
     smc = indicators.get("smc") or {}
     fresh_break = smc.get("ready") and smc.get("structure_event") in ("BOS", "CHoCH")
 
+    # 3. Stochastic (9,3,3) + Trend + Multi-Bar Engulfing Trigger
+    stoch_res = indicators.get("stoch_swings") or {}
+    stoch_ready = stoch_res.get("ready", False)
+    stoch_valid = False
+    stoch_reason = ""
+
+    if stoch_ready:
+        up = stoch_res.get("uptrend", {})
+        down = stoch_res.get("downtrend", {})
+        if up.get("valid") and up.get("engulfed"):
+            stoch_valid = True
+            stoch_reason = f"🌊 เกิดสวิง Stoch (9,3,3) ขาขึ้น (L2 > L1) + Multi-Bar Engulfing — เข้าเงื่อนไขให้ AI วิเคราะห์"
+        elif down.get("valid") and down.get("engulfed"):
+            stoch_valid = True
+            stoch_reason = f"🌊 เกิดสวิง Stoch (9,3,3) ขาลง (H2 < H1) + Multi-Bar Engulfing — เข้าเงื่อนไขให้ AI วิเคราะห์"
+
     if hits:
         top = hits[0]
         reason = f"ราคาแตะโซน {top['kind']} ({top['tf']}) ที่ {top['low']}–{top['high']} — เข้าเงื่อนไขให้ AI วิเคราะห์"
@@ -135,6 +151,8 @@ def should_engage(price: float, indicators: dict, zones: list[dict], atr: float 
     if fresh_break:
         reason = f"เพิ่งเกิด {smc['structure_event']} ({indicators.get('structure_timeframe')}) — เข้าเงื่อนไขให้ AI วิเคราะห์"
         return {"engage": True, "reason": reason, "zones_hit": [], "trigger": "structure_break"}
+    if stoch_valid:
+        return {"engage": True, "reason": stoch_reason, "zones_hit": [], "trigger": "stoch_swing"}
 
     nearest = check_price_at_zone(price, zones, atr, tol_ratio=99)  # all, to report nearest
     near_txt = ""
