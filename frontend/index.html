@@ -103,7 +103,16 @@
 
         <h2>🌊 Stochastic (9,3,3) + RSI (14) Swing Engine & Fibo 161.8%</h2>
         <div class="winrate-panel" id="stoch-swings-panel" style="text-align:left;">
-          <p class="placeholder">กำลังประมวลผลรอบสวิง Stoch (9,3,3)...</p>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px; padding-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.08);">
+            <button onclick="selectStochSymbol('XAUUSD')" style="padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid var(--green); background:rgba(14,203,129,0.15); color:var(--green);">XAUUSD</button>
+            <button onclick="selectStochSymbol('EURUSD')" style="padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.04); color:#cbd5e1;">EURUSD</button>
+            <button onclick="selectStochSymbol('GBPUSD')" style="padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.04); color:#cbd5e1;">GBPUSD</button>
+            <button onclick="selectStochSymbol('USDJPY')" style="padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.04); color:#cbd5e1;">USDJPY</button>
+            <button onclick="selectStochSymbol('EURJPY')" style="padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.04); color:#cbd5e1;">EURJPY</button>
+            <button onclick="selectStochSymbol('GBPJPY')" style="padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.04); color:#cbd5e1;">GBPJPY</button>
+            <button onclick="selectStochSymbol('BTCUSD')" style="padding:4px 10px; border-radius:6px; font-size:12px; font-weight:600; cursor:pointer; border:1px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.04); color:#cbd5e1;">BTCUSD</button>
+          </div>
+          <p class="placeholder" style="color:var(--accent);">⚡ กำลังเชื่อมต่อฐานข้อมูลสวิง...</p>
         </div>
 
         <h2>👁 Multi-TF Zone Watch — H1↔M5 · H4↔M15 · เทรน H1/H4/D1</h2>
@@ -374,6 +383,6 @@
   </div>
 
   <script src="office.js?v=8"></script>
-  <script src="app.js?v=20"></script>
+  <script src="app.js?v=21"></script>
 </body>
 </html>
