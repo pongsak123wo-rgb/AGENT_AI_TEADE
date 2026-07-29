@@ -120,6 +120,9 @@ def get_asset_buffer(symbol: str, atr: float | None = None) -> dict:
     return {"symbol": sym, "buffer_dist": buffer_pips}
 
 
+import stoch_swing_engine
+
+
 def calculate_confluence_score(
     smc: dict,
     indicators: dict,
@@ -128,14 +131,35 @@ def calculate_confluence_score(
     yf: dict,
     cot: dict,
     symbol: str,
+    ohlc: dict | None = None,
 ) -> dict:
     """100-Point Confluence Scoring Engine.
 
-    Threshold >= 65/100 -> TRADE APPROVED.
-    Prevents over-filtering while maintaining high accuracy.
+    Threshold >= 60/100 -> TRADE APPROVED.
+    Integrates Stoch (9,3,3) + RSI (14) Swing Engine & Multi-Bar Engulfing.
     """
     score = 0
     breakdown = []
+
+    # 0. Stoch (9,3,3) + RSI (14) Swing Engine Integration (+15 Points)
+    if ohlc and len(ohlc.get("c", [])) >= 20:
+        highs = ohlc.get("h", [])
+        lows = ohlc.get("l", [])
+        opens = ohlc.get("o", [])
+        closes = ohlc.get("c", [])
+
+        stoch_res = stoch_swing_engine.detect_stoch_swings(highs, lows, closes)
+        if stoch_res.get("ready"):
+            up = stoch_res.get("uptrend", {})
+            if up.get("valid"):
+                score += 15
+                breakdown.append(f"Stoch (9,3,3) Higher Low Swing OS2 ({up.get('l2_price'):.5f} > {up.get('l1_price'):.5f} +15p)")
+
+                # Check Multi-Bar Engulfing
+                eng = stoch_swing_engine.check_multi_candle_engulfing(highs, lows, opens, closes, up.get("os2_index"), side="buy")
+                if eng.get("engulfed"):
+                    score += 10
+                    breakdown.append(f"Multi-Bar Bullish Engulfing Confirmed (+10p)")
 
     # 1. SMC Zone & Structure (Max 30 Points)
     smc_ready = smc.get("ready", False)

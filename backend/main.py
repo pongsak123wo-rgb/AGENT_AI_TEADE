@@ -529,7 +529,36 @@ def send_test_notification():
         "✅ การเชื่อมต่อระบบแจ้งเตือน Telegram สำเร็จเรียบร้อยแล้ว!\n"
         "พร้อมรับการแจ้งเตือนเปิด/ปิดไม้ออเดอร์เข้ามือถือทันทีครับ 📱💎"
     )
-    return {"ok": ok, "detail": detail, "message": "ส่งข้อความทดสอบสำเร็จ!" if ok else f"ส่งข้อความไม่สำเร็จ: {detail}"}
+import stoch_swing_engine
+
+
+@app.get("/stoch-swings/status")
+def get_stoch_swings_status(symbol: str = "XAUUSD"):
+    live = data_agent.prices.get(symbol.upper(), 4025.0)
+    # Generate test candle OHLC
+    ohlc = {
+        "o": [live - (i * 0.2) for i in range(30, 0, -1)],
+        "h": [live + 2.0 - (i * 0.1) for i in range(30, 0, -1)],
+        "l": [live - 2.0 - (i * 0.2) for i in range(30, 0, -1)],
+        "c": [live - (i * 0.15) for i in range(30, 0, -1)],
+    }
+    swings = stoch_swing_engine.detect_stoch_swings(ohlc["h"], ohlc["l"], ohlc["c"])
+    return {
+        "symbol": symbol.upper(),
+        "engine": "Stochastic (9,3,3) + RSI (14) Swing Engine",
+        "rules": [
+            "OB (>80) & OS (<20) Strict Zone Swings",
+            "Uptrend Chain: OS1 (L1) -> OB1 (H1) -> OS2 (L2) with L2 > L1",
+            "Major Support anchored at OS1 (L1)",
+            "Multi-Bar Bullish Engulfing Confirmation at OS2",
+            "TP1: Previous High (H1), TP2: Fibo Extension 161.8%",
+            "Emergency DCA Layer 2: Fibo 38.2% drop",
+            "Emergency Close: OB2 with H2 < H1",
+            "Hard Cut Loss: Price breaks OS1 (L3 < L1)",
+            "MTF AI Selection: [H1+M5] vs [H4+M15]"
+        ],
+        "stoch_analysis": swings
+    }
 
 
 @app.get("/kill-switch")
