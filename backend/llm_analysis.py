@@ -229,7 +229,7 @@ def analyze(symbol: str, indicator_snapshot: dict) -> dict:
             "confidence": 75,
             "reason": fallback_reason[:120],
             "indicators": indicator_snapshot,
-            "knowledge_used": knowledge_results,
+            "knowledge_used": knowledge_chunks,
             "knowledge_cited": True,
             "knowledge_note": "วิเคราะห์โดยสมองกล Rule-Engine สำรองตามตำรา Stoch (9,3,3) + RSI (14)",
             "provider": "rule_engine_fallback"
