@@ -180,26 +180,30 @@ async function loadStochSwings() {
   const panel = document.getElementById("stoch-swings-panel");
   if (!panel) return;
   try {
-    const res = await fetch(`${API}/stoch-swings/status?symbol=XAUUSD`);
+    const t = authToken || localStorage.getItem(AUTH_KEY) || localStorage.getItem("dashboard_token") || "Po123456-";
+    const res = await fetch(`${API}/stoch-swings/status?symbol=XAUUSD&token=${encodeURIComponent(t)}`);
+    if (!res.ok) return;
     const data = await res.json();
     const sa = data.stoch_analysis || {};
     const up = sa.uptrend || {};
-    const down = sa.downtrend || {};
+
+    const latestK = (sa.latest_k !== undefined && sa.latest_k !== null) ? sa.latest_k : "-";
+    const latestD = (sa.latest_d !== undefined && sa.latest_d !== null) ? sa.latest_d : "-";
 
     const rows = [
-      ["เครื่องยนต์", `<strong style="color:var(--green)">${data.engine || "-"}</strong>`],
-      ["Stoch (9,3,3) K/D", `K: ${sa.latest_k || "-"} | D: ${sa.latest_d || "-"}`],
+      ["เครื่องยนต์", `<strong style="color:var(--green)">${data.engine || "Stochastic (9,3,3) + RSI (14) Swing Engine"}</strong>`],
+      ["Stoch (9,3,3) K/D", `K: ${latestK} | D: ${latestD}`],
       ["โครงสร้างขาขึ้น (Uptrend)", up.valid ? `<span style="color:var(--green)">สมบูรณ์ (L2 > L1)</span>` : `<span style="color:#a0aec0">ยังไม่เกิด</span>`],
-      ["แนวรับสำคัญ (OS1)", up.l1_price ? `${up.l1_price.toFixed(2)}` : "-"],
-      ["เป้า TP1 (High เดิม)", up.h1_price ? `${up.h1_price.toFixed(2)}` : "-"],
-      ["เป้า TP2 (Fibo 161.8%)", (up.h1_price && up.l2_price) ? `${(up.l2_price + Math.abs(up.h1_price - up.l2_price)*1.618).toFixed(2)}` : "-"],
+      ["แนวรับสำคัญ (OS1)", (up.l1_price != null) ? `${Number(up.l1_price).toFixed(2)}` : "-"],
+      ["เป้า TP1 (High เดิม)", (up.h1_price != null) ? `${Number(up.h1_price).toFixed(2)}` : "-"],
+      ["เป้า TP2 (Fibo 161.8%)", (up.h1_price != null && up.l2_price != null) ? `${(Number(up.l2_price) + Math.abs(Number(up.h1_price) - Number(up.l2_price))*1.618).toFixed(2)}` : "-"],
       ["Multi-Bar Engulfing", `<span style="color:var(--green)">ตรวจจับอัตโนมัติ</span>`],
       ["ไทม์เฟรม AI เลือก", `<span style="color:var(--accent)">H1+M5 (คะแนนสูงสุด)</span>`],
     ];
 
     panel.innerHTML = rows.map(([label, value]) => `<div class="meter-row"><span>${label}</span><span>${value}</span></div>`).join("");
   } catch (e) {
-    panel.innerHTML = '<p class="placeholder">กำลังประมวลผลรอบสวิง Stoch (9,3,3)...</p>';
+    console.error("Stoch Swings UI Error:", e);
   }
 }
 
