@@ -38,6 +38,7 @@ import decision_audit
 import mt5_history_bridge
 import kill_switch
 import knowledge_base
+import notifier
 import llm_circuit_breaker
 import mt5_bridge
 import order_executor
@@ -285,6 +286,18 @@ async def run_cycle():
                 )
                 risk_manager.record_ticket_risk(exec_result["ticket"], decision["risk_pct"])
                 signal_log.set_ticket(signal_id, exec_result["ticket"])
+                notifier.notify_trade_opened(
+                    ticket=exec_result["ticket"],
+                    symbol=target_symbol,
+                    action=decision["action"],
+                    volume=decision["lot_size"],
+                    price_open=exec_result.get("filled_price") or current_price,
+                    sl=decision.get("sl"),
+                    tp=decision.get("tp"),
+                    risk_pct=decision.get("risk_pct"),
+                    score=(allin_status.get("scoring") or {}).get("score", 90),
+                    reason=decision.get("reason"),
+                )
                 await broadcast(
                     AgentMessage(
                         agent="ceo",
@@ -349,6 +362,15 @@ async def run_cycle():
         settled += signal_log.check_settled_by_ticket(real_prices, live_tickets)
     for s in settled:
         risk_manager.close_position(s["symbol"], s["action"])
+        notifier.notify_trade_closed(
+            ticket=s.get("ticket_id") or s.get("id"),
+            symbol=s["symbol"],
+            action=s["action"],
+            volume=s.get("lot_size", 0.1),
+            result=s.get("result", "none"),
+            profit=s.get("profit", 0.0),
+            close_price=s.get("exit_price"),
+        )
         if s["result"] == "win":
             result_th = "ชนะ"
         elif s["result"] == "loss":
@@ -488,6 +510,26 @@ def update_risk(update: RiskConfigUpdate):
 def reset_positions():
     risk_manager.state.open_positions.clear()
     return risk_manager.snapshot()
+
+
+@app.get("/notifier/status")
+def get_notifier_status():
+    token, chat_id = notifier._get_config()
+    return {
+        "configured": bool(token and chat_id),
+        "bot_token": f"{token[:8]}..." if token else None,
+        "chat_id": chat_id,
+    }
+
+
+@app.post("/notifier/test")
+def send_test_notification():
+    ok = notifier.send_telegram_sync(
+        "🚀 <b>Trading Room AI — Telegram Test Alert</b>\n\n"
+        "✅ การเชื่อมต่อระบบแจ้งเตือน Telegram สำเร็จเรียบร้อยแล้ว!\n"
+        "พร้อมรับการแจ้งเตือนเปิด/ปิดไม้ออเดอร์เข้ามือถือทันทีครับ 📱💎"
+    )
+    return {"ok": ok, "message": "ส่งข้อความทดสอบสำเร็จ!" if ok else "ส่งข้อความไม่สำเร็จ (โปรดตรวจสอบ TOKEN / CHAT_ID)"}
 
 
 @app.get("/kill-switch")
