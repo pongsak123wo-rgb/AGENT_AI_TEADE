@@ -219,12 +219,12 @@ def calculate_confluence_score(
         breakdown.append("COT Baseline Neutral (+10p)")
 
     score = max(0, min(100, score))
-    approved = score >= 60  # Flexible 60-point threshold for steady trade frequency
+    approved = score >= 40  # Lowered to 40 points for high-frequency quality trade execution
 
     return {
         "score": score,
         "approved": approved,
-        "threshold": 60,
+        "threshold": 40,
         "breakdown": breakdown,
         "summary": f"Score {score}/100 ({'APPROVED' if approved else 'REJECTED'}) — " + ", ".join(breakdown[:3]),
     }
