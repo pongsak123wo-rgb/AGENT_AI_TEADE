@@ -173,6 +173,9 @@ function renderIndicatorsPanel(symbol, indicators) {
       ([label, value]) => `
         <div class="meter-row"><span>${label}</span><span>${value}</span></div>`
     )
+    .join("");
+}
+
 async function loadStochSwings() {
   const panel = document.getElementById("stoch-swings-panel");
   if (!panel) return;
