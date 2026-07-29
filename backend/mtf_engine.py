@@ -155,16 +155,16 @@ def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None, d
             stoch_res = stoch_swing_engine.detect_stoch_swings(entry_h, entry_l, entry_c)
             up = stoch_res.get("uptrend", {})
             down = stoch_res.get("downtrend", {})
-            if up.get("valid"):
+            if up.get("valid") and trend["overall"] in ("bullish", "mixed", "unknown"):
                 eng_buy = stoch_swing_engine.check_multi_candle_engulfing(entry_h, entry_l, entry_o, entry_c, up.get("os2_index"), side="buy")
                 if eng_buy.get("engulfed"):
                     engage = True
-                    engage_reason = f"🌊 เกิดสวิง Stoch (9,3,3) ขาขึ้น ({p['entry']}) (L2 > L1) + Multi-Bar Engulfing — เข้าเงื่อนไขให้ AI วิเคราะห์"
-            elif down.get("valid"):
+                    engage_reason = f"🌊 เกิดสวิง Stoch (9,3,3) ขาขึ้น ({p['entry']}) (L2 > L1) ตามเทรนใหญ่ {trend['overall']} + Multi-Bar Engulfing — เข้าเงื่อนไขให้ AI วิเคราะห์"
+            elif down.get("valid") and trend["overall"] in ("bearish", "mixed", "unknown"):
                 eng_sell = stoch_swing_engine.check_multi_candle_engulfing(entry_h, entry_l, entry_o, entry_c, down.get("ob2_index"), side="sell")
                 if eng_sell.get("engulfed"):
                     engage = True
-                    engage_reason = f"🌊 เกิดสวิง Stoch (9,3,3) ขาลง ({p['entry']}) (H2 < H1) + Multi-Bar Engulfing — เข้าเงื่อนไขให้ AI วิเคราะห์"
+                    engage_reason = f"🌊 เกิดสวิง Stoch (9,3,3) ขาลง ({p['entry']}) (H2 < H1) ตามเทรนใหญ่ {trend['overall']} + Multi-Bar Engulfing — เข้าเงื่อนไขให้ AI วิเคราะห์"
 
     if not engage:
         # nothing at a zone → free watch cycle
