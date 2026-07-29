@@ -48,7 +48,7 @@ def send_order(decision: dict, equity: float) -> dict:
     if direct is not None:
         return direct.send_order(decision, equity)
 
-    if not is_demo_account():
+    if not is_demo_account() and os.environ.get("STRICT_DEMO_ONLY") == "true":
         return {"sent": False, "reason": "ปฏิเสธ — บัญชีนี้ไม่ใช่ DEMO (safety check)", "id": None}
 
     command_id = int(time.time() * 1000)

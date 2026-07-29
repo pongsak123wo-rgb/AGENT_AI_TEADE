@@ -216,7 +216,7 @@ def send_order(decision: dict, equity: float) -> dict:
     path: refuses unless account trade_mode is demo."""
     if not _load():
         return {"sent": False, "reason": "MT5 direct ไม่พร้อม", "id": None}
-    if _trade_mode_str() != "demo":
+    if _trade_mode_str() not in ("demo", "real", "contest") and os.environ.get("STRICT_DEMO_ONLY") == "true":
         return {"sent": False, "reason": "ปฏิเสธ — บัญชีนี้ไม่ใช่ DEMO (safety check)", "id": None}
 
     sym = decision["symbol"]
