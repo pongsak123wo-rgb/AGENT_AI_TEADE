@@ -296,14 +296,14 @@ async def run_cycle():
                 signal_log.set_ticket(signal_id, exec_result["ticket"])
                 notifier.notify_trade_opened(
                     ticket=exec_result["ticket"],
-                    symbol=target_symbol,
+                    symbol=symbol,
                     action=decision["action"],
-                    volume=decision["lot_size"],
-                    price_open=exec_result.get("filled_price") or current_price,
+                    volume=exec_result.get("lot", 0),
+                    price_open=exec_result.get("filled_price") or snapshot["price"],
                     sl=decision.get("sl"),
                     tp=decision.get("tp"),
                     risk_pct=decision.get("risk_pct"),
-                    score=(allin_status.get("scoring") or {}).get("score", 90),
+                    score=(decision.get("audit") or {}).get("score", 90),
                     reason=decision.get("reason"),
                 )
                 await broadcast(
