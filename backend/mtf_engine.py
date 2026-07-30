@@ -59,16 +59,19 @@ def _trend_of(closes: list[float]) -> str:
     return "ranging"
 
 
-def build_timeframes(m1: dict | None, h1: dict | None, d1: dict | None = None) -> dict:
+def build_timeframes(m1: dict | None, h1: dict | None, d1: dict | None = None,
+                     h4: dict | None = None) -> dict:
     """Resample the EA's M1/H1 into every TF the engine needs. When a native
-    D1 stream is supplied (mt5_direct provides real Daily bars), use it
-    instead of the coarse H1→D1 resample, which only has ~6 bars from 150
-    H1 and can't form real daily structure."""
+    D1/H4 stream is supplied (mt5_direct provides real Daily and 4-hour bars),
+    use it instead of the coarse H1 resample: H1→H4 only yields ~37 bars from
+    150 H1 (too few for the Stoch swing engine to form OB/OS chains), and
+    H1→D1 only ~6 bars. Native bars give the higher-TF swing gate real
+    structure to read; resample stays as a fallback when they're absent."""
     return {
         "M5":  timeframe.resample(m1, 5),
         "M15": timeframe.resample(m1, 15),
         "H1":  h1,
-        "H4":  timeframe.resample(h1, 4),
+        "H4":  h4 if (h4 and len(h4.get("c", [])) >= 20) else timeframe.resample(h1, 4),
         "D1":  d1 if (d1 and len(d1.get("c", [])) >= 5) else timeframe.resample(h1, 24),
     }
 
@@ -92,10 +95,12 @@ def _trend_consensus(tfs: dict) -> dict:
     return {"per_tf": per_tf, "overall": overall, "votes": votes}
 
 
-def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None, d1: dict | None = None) -> dict:
+def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None,
+            d1: dict | None = None, h4: dict | None = None) -> dict:
     """Full multi-TF read. Returns trend consensus, per-pair zone state,
     and a single engage gate (spend an LLM call now?)."""
-    tfs = build_timeframes(m1, h1, d1)
+    import stoch_swing_engine
+    tfs = build_timeframes(m1, h1, d1, h4)
     trend = _trend_consensus(tfs)
 
     pairs_out = []
@@ -145,9 +150,25 @@ def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None, d
                 f"ตรงกับเทรน {trend['overall']} — เข้าเงื่อนไขให้ AI วิเคราะห์"
             )
 
+        # Higher-TF Stoch (9,3,3) swing direction for THIS pair's structure TF
+        # (H1 for scalp, H4 for intraday). The lower-TF entry swing may only
+        # fire when the higher TF's own Stoch swing agrees — a real top-down
+        # swing filter, not just an EMA-slope trend read. Requires native H4
+        # bars (mt5_direct) to have enough structure; if the HTF swing isn't
+        # ready (too few OB/OS swings), the pair is blocked (strict default).
+        htf_up = htf_down = False
+        htf_ready = False
+        if struct and len(struct.get("c", [])) >= 20:
+            htf_swing = stoch_swing_engine.detect_stoch_swings(
+                struct.get("h", []), struct.get("l", []), struct.get("c", []))
+            htf_up = htf_swing.get("uptrend", {}).get("valid", False)
+            htf_down = htf_swing.get("downtrend", {}).get("valid", False)
+            htf_ready = htf_swing.get("ready", False)
+        pair_state["htf_swing"] = {"tf": p["structure"], "ready": htf_ready,
+                                   "uptrend": htf_up, "downtrend": htf_down}
+
         # Check Stoch (9,3,3) Swing Engine + Engulfing trigger per pair
         if not engage and entry and len(entry.get("c", [])) >= 20:
-            import stoch_swing_engine
             entry_c = entry.get("c", [])
             entry_h = entry.get("h", [])
             entry_l = entry.get("l", [])
@@ -155,16 +176,16 @@ def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None, d
             stoch_res = stoch_swing_engine.detect_stoch_swings(entry_h, entry_l, entry_c)
             up = stoch_res.get("uptrend", {})
             down = stoch_res.get("downtrend", {})
-            if up.get("valid") and trend["overall"] in ("bullish", "mixed", "unknown"):
+            if up.get("valid") and htf_up:
                 eng_buy = stoch_swing_engine.check_multi_candle_engulfing(entry_h, entry_l, entry_o, entry_c, up.get("os2_index"), side="buy")
                 if eng_buy.get("engulfed"):
                     engage = True
-                    engage_reason = f"🌊 เกิดสวิง Stoch (9,3,3) ขาขึ้น ({p['entry']}) (L2 > L1) ตามเทรนใหญ่ {trend['overall']} + Multi-Bar Engulfing — เข้าเงื่อนไขให้ AI วิเคราะห์"
-            elif down.get("valid") and trend["overall"] in ("bearish", "mixed", "unknown"):
+                    engage_reason = f"🌊 สวิง Stoch (9,3,3) ขาขึ้น {p['structure']}+{p['entry']} (HTF & LTF L2>L1) + Multi-Bar Engulfing — เข้าเงื่อนไขให้ AI วิเคราะห์"
+            elif down.get("valid") and htf_down:
                 eng_sell = stoch_swing_engine.check_multi_candle_engulfing(entry_h, entry_l, entry_o, entry_c, down.get("ob2_index"), side="sell")
                 if eng_sell.get("engulfed"):
                     engage = True
-                    engage_reason = f"🌊 เกิดสวิง Stoch (9,3,3) ขาลง ({p['entry']}) (H2 < H1) ตามเทรนใหญ่ {trend['overall']} + Multi-Bar Engulfing — เข้าเงื่อนไขให้ AI วิเคราะห์"
+                    engage_reason = f"🌊 สวิง Stoch (9,3,3) ขาลง {p['structure']}+{p['entry']} (HTF & LTF H2<H1) + Multi-Bar Engulfing — เข้าเงื่อนไขให้ AI วิเคราะห์"
 
     if not engage:
         # nothing at a zone → free watch cycle

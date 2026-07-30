@@ -103,7 +103,7 @@ def read_snapshot() -> dict | None:
         if not acct:
             return None
 
-        symbols_px, candles, h1_candles, d1_candles = {}, {}, {}, {}
+        symbols_px, candles, h1_candles, h4_candles, d1_candles = {}, {}, {}, {}, {}
         for sym in _symbols():
             tick = _mt5.symbol_info_tick(sym)
             if tick and tick.bid and tick.ask:
@@ -114,6 +114,13 @@ def read_snapshot() -> dict | None:
             h1 = _rates(sym, _mt5.TIMEFRAME_H1, 150)
             if h1:
                 h1_candles[sym] = h1
+            # Native H4 (~250 bars ≈ 41 days) — enough for the Stoch (9,3,3)
+            # swing engine to form real OB/OS chains. The old H4=resample(H1,4)
+            # only yielded ~37 bars and rarely produced 3 swings, so the
+            # intraday (H4↔M15) pair almost never fired.
+            h4 = _rates(sym, _mt5.TIMEFRAME_H4, 250)
+            if h4:
+                h4_candles[sym] = h4
             d1 = _rates(sym, _mt5.TIMEFRAME_D1, 120)
             if d1:
                 d1_candles[sym] = d1
@@ -140,6 +147,7 @@ def read_snapshot() -> dict | None:
             "symbols": symbols_px,
             "candles": candles,
             "h1_candles": h1_candles,
+            "h4_candles": h4_candles,
             "d1_candles": d1_candles,
         }
     except Exception:
