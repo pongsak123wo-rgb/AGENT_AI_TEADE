@@ -550,7 +550,7 @@ def get_stoch_swings_status(symbol: str = "XAUUSD"):
 
     # Try MT5 Direct
     if mt5_direct.available():
-        snap = mt5_direct.get_snapshot()
+        snap = mt5_direct.read_snapshot()
         if snap and "candles" in snap and sym in snap["candles"]:
             candles = snap["candles"][sym]
 
