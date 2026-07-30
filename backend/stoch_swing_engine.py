@@ -39,20 +39,26 @@ def compute_stoch_933(highs: list[float], lows: list[float], closes: list[float]
 
 def detect_stoch_swings(highs: list[float], lows: list[float], closes: list[float]) -> dict:
     """Detects OB (>80) and OS (<20) swings only for Stochastic (9,3,3)."""
-    k_line, d_line = compute_stoch_933(highs, lows, closes)
+    k_period, smooth_k, d_period = 9, 3, 3  # must match compute_stoch_933 defaults
+    k_line, d_line = compute_stoch_933(highs, lows, closes, k_period, d_period, smooth_k)
     if not k_line or len(k_line) < 15:
         return {"ready": False, "reason": "ข้อมูลไม่พอคำนวณ Stochastic (9,3,3)"}
 
-    # Find OB (>80) and OS (<20) pivot points
+    # Find OB (>80) and OS (<20) pivot points. Thresholds match the strategy
+    # spec exactly (OB > 80 / OS < 20) — the old 75/25 was 5 points looser and
+    # tagged swings that never truly reached the OB/OS zone, producing weaker
+    # signals. The %K warm-up region is padded with fillna(50), which can
+    # fabricate fake pivots at the very start of the series, so pivot detection
+    # only begins once %K is actually computed (after the k+smooth+d window).
     swings = []
     n = len(k_line)
+    warmup = k_period + smooth_k + d_period  # bars before %K is real
 
-    for i in range(2, n - 1):
+    for i in range(max(2, warmup), n - 1):
         k_val = k_line[i]
-        # Check OS Swing Low (<20 zone cut up or local min in OS)
-        if k_val < 25:
+        # Check OS Swing Low (local min inside the <20 zone)
+        if k_val < 20:
             if k_val <= k_line[i-1] and k_val <= k_line[i+1]:
-                # Local min inside OS zone
                 swings.append({
                     "type": "OS",
                     "index": i,
@@ -60,10 +66,9 @@ def detect_stoch_swings(highs: list[float], lows: list[float], closes: list[floa
                     "price_low": lows[i],
                     "price_close": closes[i]
                 })
-        # Check OB Swing High (>80 zone cut down or local max in OB)
-        elif k_val > 75:
+        # Check OB Swing High (local max inside the >80 zone)
+        elif k_val > 80:
             if k_val >= k_line[i-1] and k_val >= k_line[i+1]:
-                # Local max inside OB zone
                 swings.append({
                     "type": "OB",
                     "index": i,
@@ -93,7 +98,13 @@ def detect_stoch_swings(highs: list[float], lows: list[float], closes: list[floa
     os_swings = [s for s in swings if s["type"] == "OS"]
     ob_swings = [s for s in swings if s["type"] == "OB"]
 
-    # 1. Check Uptrend Chain: OS1 -> OB1 -> OS2
+    # 1. Check Uptrend Chain: OS1 -> OB1 -> OS2 (STRICT chronological order).
+    # The old code just took os_swings[-2], os_swings[-1] and ob_swings[-1]
+    # without checking that OB1 actually sat BETWEEN the two OS swings — so the
+    # "OB1" could be after OS2 or before OS1, i.e. not a real OS→OB→OS structure
+    # at all. Here we anchor on the most recent OS (OS2), find the last OB
+    # strictly before it (OB1), then the last OS strictly before that OB (OS1).
+    # That guarantees index(OS1) < index(OB1) < index(OS2).
     uptrend_valid = False
     major_support_l1 = None
     major_resistance_h0 = None
@@ -103,23 +114,25 @@ def detect_stoch_swings(highs: list[float], lows: list[float], closes: list[floa
     os2_index = None
 
     if len(os_swings) >= 2 and len(ob_swings) >= 1:
-        os1 = os_swings[-2]
         os2 = os_swings[-1]
-        ob1 = ob_swings[-1]
+        ob1 = next((s for s in reversed(ob_swings) if s["index"] < os2["index"]), None)
+        os1 = next((s for s in reversed(os_swings) if ob1 and s["index"] < ob1["index"]), None)
 
-        # Order must chronologically be OS1 < OB1 < OS2 or OS1 < OS2 with OB in between
-        if os1["index"] < os2["index"]:
+        if os1 and ob1:
             l1_price = os1["price_low"]
             l2_price = os2["price_low"]
             h1_price = ob1["price_high"]
             os2_index = os2["index"]
 
-            if l2_price > l1_price:
+            if l2_price > l1_price:  # Higher Low
                 uptrend_valid = True
                 major_support_l1 = l1_price
                 major_resistance_h0 = h1_price
 
-    # 2. Check Downtrend Chain: OB1 -> OS1 -> OB2
+    # 2. Check Downtrend Chain: OB1 -> OS1 -> OB2 (STRICT chronological order).
+    # Same fix, mirrored: anchor on the most recent OB (OB2), find the last OS
+    # strictly before it (OS1/L1), then the last OB strictly before that OS
+    # (OB1/H1). Guarantees index(OB1) < index(OS1) < index(OB2).
     downtrend_valid = False
     major_resistance_h1 = None
     major_support_l0 = None
@@ -129,17 +142,17 @@ def detect_stoch_swings(highs: list[float], lows: list[float], closes: list[floa
     ob2_index = None
 
     if len(ob_swings) >= 2 and len(os_swings) >= 1:
-        ob1_d = ob_swings[-2]
         ob2_d = ob_swings[-1]
-        os1_d = os_swings[-1]
+        os1_d = next((s for s in reversed(os_swings) if s["index"] < ob2_d["index"]), None)
+        ob1_d = next((s for s in reversed(ob_swings) if os1_d and s["index"] < os1_d["index"]), None)
 
-        if ob1_d["index"] < ob2_d["index"]:
+        if ob1_d and os1_d:
             h1_down = ob1_d["price_high"]
             h2_down = ob2_d["price_high"]
             l1_down = os1_d["price_low"]
             ob2_index = ob2_d["index"]
 
-            if h2_down < h1_down:
+            if h2_down < h1_down:  # Lower High
                 downtrend_valid = True
                 major_resistance_h1 = h1_down
                 major_support_l0 = l1_down
