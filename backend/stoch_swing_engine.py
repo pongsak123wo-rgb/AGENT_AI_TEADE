@@ -359,3 +359,74 @@ def check_emergency_dca(entry1_price: float, current_price: float, ob1_price: fl
     else:
         fibo_382 = os2_price - (height * 0.382)
         return current_price >= fibo_382
+
+
+# Fibonacci retracement lines drawn between OS1 (0%) and OB1 (100%).
+FIBO_LINES = [0.236, 0.382, 0.5, 0.618, 0.786]
+
+
+def fibo_dca_plan(entry_price: float, os1_price: float, ob1_price: float,
+                  side: str = "buy") -> dict:
+    """Plan initial size + one DCA add, using the OS1↔OB1 fibo grid.
+
+    Strategy (buy): draw fibo from OS1 (0%, major support / hard SL) to OB1
+    (100%). The first entry is at OS2 + engulfing, sitting somewhere on the
+    grid. Count the fibo lines that lie ADVERSE to the entry (below it for a
+    buy) before price would reach OS1:
+      • ≥2 lines below  → "far": there's room to average, so take HALF now
+        (0.5R) and arm a DCA add at the SECOND line below the entry
+        ("drop two zones"). Combined risk stays ≤1R.
+      • <2 lines below   → "near": no room, take the FULL 1.0R at once, no DCA.
+    Sell mirrors: adverse = above, SL = OB1.
+
+    Returns a plan dict; risk sizing/execution lives in the caller. This is
+    pure math and deterministic — the engine decides, not the LLM.
+    """
+    low, high = min(os1_price, ob1_price), max(os1_price, ob1_price)
+    span = high - low
+    if span <= 0:
+        return {"ready": False, "reason": "OS1/OB1 ซ้อนกัน คำนวณโซนไม่ได้"}
+
+    lines = [round(low + f * span, 5) for f in FIBO_LINES]
+    # Compare on PRICE with an epsilon, not on the fraction: an entry sitting
+    # exactly on a fibo line (e.g. 61.8%) would otherwise get that same line
+    # counted as "adverse" through float error, pushing the DCA one zone too
+    # shallow. A line at (≈) the entry price is the entry's own zone, not below.
+    eps = span * 1e-6
+    if side == "buy":
+        adverse = sorted([p for p in lines if p < entry_price - eps], reverse=True)  # nearest below first
+        hard_sl = round(os1_price, 5)
+    else:
+        adverse = sorted([p for p in lines if p > entry_price + eps])                # nearest above first
+        hard_sl = round(ob1_price, 5)
+
+    if len(adverse) >= 2:
+        return {"ready": True, "far": True, "initial_fraction": 0.5,
+                "dca_trigger": adverse[1], "dca_fraction": 0.5,
+                "hard_sl": hard_sl, "max_positions": 2,
+                "reason": f"ไกล ({len(adverse)} โซนก่อนถึง {'OS1' if side=='buy' else 'OB1'}) → เข้า 0.5R + รอถัวที่ {adverse[1]}"}
+    return {"ready": True, "far": False, "initial_fraction": 1.0,
+            "dca_trigger": None, "dca_fraction": 0.0,
+            "hard_sl": hard_sl, "max_positions": 1,
+            "reason": f"ใกล้ ({len(adverse)} โซน) → เข้าเต็ม 1.0R ไม่ถัว"}
+
+
+def check_structure_broken(current_price: float, os1_price: float, ob1_price: float,
+                           latest_ob_high: float | None = None, side: str = "buy") -> dict:
+    """Whether the swing structure is destroyed → close everything.
+    buy:  price breaks below OS1 (L3 < L1)  OR  a new OB prints below OB1
+          (OB2 < OB1 = failed higher high). Sell mirrors.
+    latest_ob_high (or the sell-side latest_os_low) is optional; pass it when a
+    fresh OB/OS swing has formed after entry so the failed-HH/LL check applies.
+    """
+    if side == "buy":
+        if current_price < os1_price:
+            return {"broken": True, "reason": f"หลุด OS1 ({os1_price}) — เสียทรงขาขึ้น ตัดทั้งหมด"}
+        if latest_ob_high is not None and latest_ob_high < ob1_price:
+            return {"broken": True, "reason": f"OB2 ({latest_ob_high}) < OB1 ({ob1_price}) — ไม่ทำ high ใหม่ พิจารณาปิด"}
+    else:
+        if current_price > ob1_price:
+            return {"broken": True, "reason": f"หลุด OB1 ({ob1_price}) — เสียทรงขาลง ตัดทั้งหมด"}
+        if latest_ob_high is not None and latest_ob_high > os1_price:
+            return {"broken": True, "reason": f"OS2 ({latest_ob_high}) > OS1 ({os1_price}) — ไม่ทำ low ใหม่ พิจารณาปิด"}
+    return {"broken": False, "reason": "ทรงยังอยู่"}
