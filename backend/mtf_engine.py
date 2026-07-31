@@ -104,6 +104,8 @@ def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None,
     trend = _trend_consensus(tfs)
 
     pairs_out = []
+    candidates = []
+    chosen = None
     engage = False
     engage_reason = None
 
@@ -173,16 +175,16 @@ def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None,
         }
         pairs_out.append(pair_state)
 
-        if aligned_hit and not engage:
-            engage = True
-            engage_reason = (
-                f"{p['entry']} แตะโซน {aligned_hit['kind']} ของ {p['structure']} "
-                f"({aligned_hit['low']}–{aligned_hit['high']}) "
-                f"ตามทิศ HTF {htf_dir} — เข้าเงื่อนไขให้ AI วิเคราะห์"
-            )
+        # ---- Score this pair as an entry candidate ----
+        # "Prettiness" (the user's คู่สวย) = HTF and LTF agreeing on ONE
+        # direction with a real trigger. We score every pair and act on the
+        # single best one, instead of blindly taking whichever fires first.
+        score = 0
+        cand_dir = cand_reason = cand_kind = None
 
-        # Check Stoch (9,3,3) Swing Engine + Engulfing trigger per pair
-        if not engage and entry and len(entry.get("c", [])) >= 20:
+        # Primary trigger (weight 60): LTF Stoch swing in the HTF direction
+        # confirmed by a multi-bar engulfing — this is the actual entry setup.
+        if entry and len(entry.get("c", [])) >= 20 and htf_dir is not None:
             entry_c = entry.get("c", [])
             entry_h = entry.get("h", [])
             entry_l = entry.get("l", [])
@@ -193,13 +195,46 @@ def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None,
             if up.get("valid") and htf_up:
                 eng_buy = stoch_swing_engine.check_multi_candle_engulfing(entry_h, entry_l, entry_o, entry_c, up.get("os2_index"), side="buy")
                 if eng_buy.get("engulfed"):
-                    engage = True
-                    engage_reason = f"🌊 สวิง Stoch (9,3,3) ขาขึ้น {p['structure']}+{p['entry']} (HTF & LTF L2>L1) + Multi-Bar Engulfing — เข้าเงื่อนไขให้ AI วิเคราะห์"
+                    score += 60
+                    cand_dir, cand_kind = "bullish", "stoch_swing"
+                    cand_reason = f"🌊 สวิง Stoch ขาขึ้น {p['structure']}+{p['entry']} (HTF&LTF L2>L1) + Engulfing"
             elif down.get("valid") and htf_down:
                 eng_sell = stoch_swing_engine.check_multi_candle_engulfing(entry_h, entry_l, entry_o, entry_c, down.get("ob2_index"), side="sell")
                 if eng_sell.get("engulfed"):
-                    engage = True
-                    engage_reason = f"🌊 สวิง Stoch (9,3,3) ขาลง {p['structure']}+{p['entry']} (HTF & LTF H2<H1) + Multi-Bar Engulfing — เข้าเงื่อนไขให้ AI วิเคราะห์"
+                    score += 60
+                    cand_dir, cand_kind = "bearish", "stoch_swing"
+                    cand_reason = f"🌊 สวิง Stoch ขาลง {p['structure']}+{p['entry']} (HTF&LTF H2<H1) + Engulfing"
+
+        # Confluence (weight 25): an SMC zone hit in the HTF direction. On its
+        # own it can still engage (so pullback-to-zone setups aren't lost), but
+        # it scores lower than a full Stoch-swing trigger.
+        if aligned_hit:
+            score += 25
+            if cand_dir is None:
+                cand_dir, cand_kind = htf_dir, "smc_zone"
+                cand_reason = (f"{p['entry']} แตะโซน {aligned_hit['kind']} ของ {p['structure']} "
+                               f"({aligned_hit['low']}–{aligned_hit['high']}) ตามทิศ HTF {htf_dir}")
+
+        # Advisory bonuses (RSI bigger-cycle agreeing / divergence agreeing).
+        if score > 0 and rsi_cycle.get("ready"):
+            if rsi_cycle.get("trend") == htf_dir:
+                score += 10
+            if rsi_cycle.get("divergence") == htf_dir:
+                score += 5
+
+        pair_state["entry_score"] = score
+        if score > 0 and cand_dir is not None:
+            candidates.append({"name": p["name"], "structure": p["structure"],
+                               "entry": p["entry"], "score": score, "dir": cand_dir,
+                               "kind": cand_kind, "reason": cand_reason})
+
+    # Pick the single prettiest pair across scalp/intraday.
+    if candidates:
+        best = max(candidates, key=lambda c: c["score"])
+        engage = True
+        chosen = best
+        engage_reason = (f"[เลือกคู่ {best['name']} · score {best['score']}] "
+                         f"{best['reason']} — เข้าเงื่อนไขให้ AI วิเคราะห์")
 
     if not engage:
         # nothing at a zone → free watch cycle
@@ -215,4 +250,5 @@ def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None,
         "pairs": pairs_out,
         "engage": engage,
         "reason": engage_reason,
+        "chosen": chosen,  # the prettiest pair we act on: {name, entry, dir, score, kind}
     }
