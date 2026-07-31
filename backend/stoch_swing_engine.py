@@ -37,6 +37,62 @@ def compute_stoch_933(highs: list[float], lows: list[float], closes: list[float]
     return smooth_k_line.fillna(50).tolist(), d_line.fillna(50).tolist()
 
 
+def compute_rsi(closes: list[float], period: int = 14) -> list[float]:
+    """RSI (Wilder's smoothing). Returns a list aligned to closes (NaN-free,
+    warm-up filled with 50)."""
+    if len(closes) < period + 1:
+        return []
+    s = pd.Series(closes)
+    delta = s.diff()
+    gain = delta.clip(lower=0)
+    loss = -delta.clip(upper=0)
+    avg_gain = gain.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+    avg_loss = loss.ewm(alpha=1 / period, min_periods=period, adjust=False).mean()
+    rs = avg_gain / (avg_loss + 1e-9)
+    rsi = 100 - (100 / (1 + rs))
+    return rsi.fillna(50).tolist()
+
+
+def detect_rsi_cycle(highs: list[float], lows: list[float], closes: list[float]) -> dict:
+    """RSI(14) as the SLOWER, bigger-cycle read that sits behind the Stoch
+    swing — RSI reaches OB/OS later than Stoch, so it frames the main trend.
+    This is ADVISORY only (a supplementary score), never a hard entry gate.
+
+    Also flags RSI divergence: the user's rule is that when a divergence
+    prints on a timeframe, Stoch tends to cut one more OB/OS round in that
+    direction — i.e. a bullish divergence hints the next Stoch OS is a buy
+    opportunity (and mirror for bearish).
+    """
+    rsi = compute_rsi(closes, 14)
+    if not rsi or len(rsi) < 32:
+        return {"ready": False, "rsi": rsi[-1] if rsi else 50.0,
+                "trend": "unknown", "divergence": "none"}
+
+    latest = round(rsi[-1], 1)
+    # Main-trend bias: RSI sitting above/below the 50 midline, smoothed over
+    # the last few bars so a single spike doesn't flip it.
+    recent_avg = sum(rsi[-5:]) / 5
+    if recent_avg > 55:
+        trend = "bullish"
+    elif recent_avg < 45:
+        trend = "bearish"
+    else:
+        trend = "ranging"
+
+    # Divergence over two adjacent 15-bar windows (price pivot vs RSI pivot).
+    prior_p, recent_p = closes[-30:-15], closes[-15:]
+    prior_r, recent_r = rsi[-30:-15], rsi[-15:]
+    divergence = "none"
+    # Bullish: price lower low, RSI higher low
+    if min(recent_p) < min(prior_p) and min(recent_r) > min(prior_r):
+        divergence = "bullish"
+    # Bearish: price higher high, RSI lower high
+    elif max(recent_p) > max(prior_p) and max(recent_r) < max(prior_r):
+        divergence = "bearish"
+
+    return {"ready": True, "rsi": latest, "trend": trend, "divergence": divergence}
+
+
 def detect_stoch_swings(highs: list[float], lows: list[float], closes: list[float]) -> dict:
     """Detects OB (>80) and OS (<20) swings only for Stochastic (9,3,3)."""
     k_period, smooth_k, d_period = 9, 3, 3  # must match compute_stoch_933 defaults

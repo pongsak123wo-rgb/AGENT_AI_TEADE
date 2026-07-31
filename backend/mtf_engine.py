@@ -135,6 +135,15 @@ def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None,
             htf_ready = htf_swing.get("ready", False)
         htf_dir = "bullish" if htf_up else ("bearish" if htf_down else None)
 
+        # RSI(14) bigger-cycle read on the entry TF — advisory only (main-trend
+        # bias + divergence hint), never a hard gate. A divergence that agrees
+        # with htf_dir is a bonus signal that the next Stoch swing is worth
+        # taking; disagreement is a caution flag for the LLM to weigh.
+        rsi_cycle = {"ready": False, "trend": "unknown", "divergence": "none"}
+        if entry and len(entry.get("c", [])) >= 32:
+            rsi_cycle = stoch_swing_engine.detect_rsi_cycle(
+                entry.get("h", []), entry.get("l", []), entry.get("c", []))
+
         # SMC zone hit counts only as CONFLUENCE in the HTF swing direction —
         # never counter-trend. The old code let mixed/unknown consensus or a
         # dir-less zone through, which is exactly how the system took BUYS in a
@@ -158,6 +167,7 @@ def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None,
             "fired_zone": aligned_hit,
             "htf_swing": {"tf": p["structure"], "ready": htf_ready,
                           "uptrend": htf_up, "downtrend": htf_down, "dir": htf_dir},
+            "rsi_cycle": rsi_cycle,
             "bars": {p["structure"]: len(struct.get("c", [])) if struct else 0,
                      p["entry"]: len(entry.get("c", [])) if entry else 0},
         }
