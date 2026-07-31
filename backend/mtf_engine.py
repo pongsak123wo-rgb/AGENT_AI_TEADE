@@ -60,16 +60,17 @@ def _trend_of(closes: list[float]) -> str:
 
 
 def build_timeframes(m1: dict | None, h1: dict | None, d1: dict | None = None,
-                     h4: dict | None = None) -> dict:
-    """Resample the EA's M1/H1 into every TF the engine needs. When a native
-    D1/H4 stream is supplied (mt5_direct provides real Daily and 4-hour bars),
-    use it instead of the coarse H1 resample: H1→H4 only yields ~37 bars from
-    150 H1 (too few for the Stoch swing engine to form OB/OS chains), and
-    H1→D1 only ~6 bars. Native bars give the higher-TF swing gate real
-    structure to read; resample stays as a fallback when they're absent."""
+                     h4: dict | None = None, m5: dict | None = None,
+                     m15: dict | None = None) -> dict:
+    """Assemble every TF the engine needs, preferring NATIVE MT5 bars over the
+    coarse M1/H1 resample whenever they're supplied (mt5_direct provides real
+    M5/M15/H4/D1). The resample only yields M5≈60, M15≈20, H4≈37, D1≈6 bars —
+    20 M15 bars is too few for the Stoch swing engine (warm-up 15 + 3 OB/OS
+    swings) or the RSI(14) cycle (needs 32), so the intraday pair was dead.
+    Native ~250-bar streams give real structure; resample stays as fallback."""
     return {
-        "M5":  timeframe.resample(m1, 5),
-        "M15": timeframe.resample(m1, 15),
+        "M5":  m5 if (m5 and len(m5.get("c", [])) >= 20) else timeframe.resample(m1, 5),
+        "M15": m15 if (m15 and len(m15.get("c", [])) >= 20) else timeframe.resample(m1, 15),
         "H1":  h1,
         "H4":  h4 if (h4 and len(h4.get("c", [])) >= 20) else timeframe.resample(h1, 4),
         "D1":  d1 if (d1 and len(d1.get("c", [])) >= 5) else timeframe.resample(h1, 24),
@@ -96,11 +97,12 @@ def _trend_consensus(tfs: dict) -> dict:
 
 
 def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None,
-            d1: dict | None = None, h4: dict | None = None) -> dict:
+            d1: dict | None = None, h4: dict | None = None,
+            m5: dict | None = None, m15: dict | None = None) -> dict:
     """Full multi-TF read. Returns trend consensus, per-pair zone state,
     and a single engage gate (spend an LLM call now?)."""
     import stoch_swing_engine
-    tfs = build_timeframes(m1, h1, d1, h4)
+    tfs = build_timeframes(m1, h1, d1, h4, m5, m15)
     trend = _trend_consensus(tfs)
 
     pairs_out = []

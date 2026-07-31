@@ -237,6 +237,8 @@ async def run_cycle():
         snapshot["price"], indicator_pre.get("atr"),
         d1=(live or {}).get("d1_candles", {}).get(symbol) if live else None,
         h4=(live or {}).get("h4_candles", {}).get(symbol) if live else None,
+        m5=(live or {}).get("m5_candles", {}).get(symbol) if live else None,
+        m15=(live or {}).get("m15_candles", {}).get(symbol) if live else None,
     )
     latest_zones[symbol] = {"mtf": mtf, "price": snapshot["price"], "at": time.time()}
 

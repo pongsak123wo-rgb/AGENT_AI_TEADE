@@ -104,6 +104,7 @@ def read_snapshot() -> dict | None:
             return None
 
         symbols_px, candles, h1_candles, h4_candles, d1_candles = {}, {}, {}, {}, {}
+        m5_candles, m15_candles = {}, {}
         for sym in _symbols():
             tick = _mt5.symbol_info_tick(sym)
             if tick and tick.bid and tick.ask:
@@ -111,6 +112,17 @@ def read_snapshot() -> dict | None:
             m1 = _rates(sym, _mt5.TIMEFRAME_M1, 300)
             if m1:
                 candles[sym] = m1
+            # Native M5/M15 (~250 bars each) — the M1→M5/M15 resample only
+            # yielded 60/20 bars, and 20 M15 bars is too few for the Stoch swing
+            # engine (warm-up 15 + 3 OB/OS swings) or the RSI(14) cycle (needs
+            # 32), so the intraday (H4↔M15) pair was effectively dead. Native
+            # bars give it real structure; resample stays as the fallback.
+            m5 = _rates(sym, _mt5.TIMEFRAME_M5, 250)
+            if m5:
+                m5_candles[sym] = m5
+            m15 = _rates(sym, _mt5.TIMEFRAME_M15, 250)
+            if m15:
+                m15_candles[sym] = m15
             h1 = _rates(sym, _mt5.TIMEFRAME_H1, 150)
             if h1:
                 h1_candles[sym] = h1
@@ -146,6 +158,8 @@ def read_snapshot() -> dict | None:
             "positions": positions,
             "symbols": symbols_px,
             "candles": candles,
+            "m5_candles": m5_candles,
+            "m15_candles": m15_candles,
             "h1_candles": h1_candles,
             "h4_candles": h4_candles,
             "d1_candles": d1_candles,
