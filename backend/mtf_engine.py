@@ -119,14 +119,33 @@ def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None,
 
         hits = zone_watch.check_price_at_zone(entry_price, zones, atr)
 
-        # A pair "fires" when price is at one of its HTF zones AND the zone
-        # direction agrees with the overall HTF trend consensus (or the
-        # consensus is mixed/unknown, in which case the zone alone counts).
+        # Higher-TF Stoch (9,3,3) swing direction for THIS pair's structure TF
+        # (H1 for scalp, H4 for intraday) — the single source of truth for the
+        # pair's tradable direction. A pair may ONLY be entered in the same
+        # direction as its own HTF Stoch swing (top-down), never counter-trend.
+        # Needs native H4 bars (mt5_direct) for enough structure; if the HTF
+        # swing isn't ready, the pair is blocked (strict default).
+        htf_up = htf_down = False
+        htf_ready = False
+        if struct and len(struct.get("c", [])) >= 20:
+            htf_swing = stoch_swing_engine.detect_stoch_swings(
+                struct.get("h", []), struct.get("l", []), struct.get("c", []))
+            htf_up = htf_swing.get("uptrend", {}).get("valid", False)
+            htf_down = htf_swing.get("downtrend", {}).get("valid", False)
+            htf_ready = htf_swing.get("ready", False)
+        htf_dir = "bullish" if htf_up else ("bearish" if htf_down else None)
+
+        # SMC zone hit counts only as CONFLUENCE in the HTF swing direction —
+        # never counter-trend. The old code let mixed/unknown consensus or a
+        # dir-less zone through, which is exactly how the system took BUYS in a
+        # downtrend (price pulling back UP into a resistance zone). Now a zone
+        # fires only when its own direction matches the pair's HTF Stoch swing.
         aligned_hit = None
-        for hh in hits:
-            if trend["overall"] in ("mixed", "unknown") or hh["dir"] == trend["overall"] or hh["dir"] is None:
-                aligned_hit = hh
-                break
+        if htf_dir is not None:
+            for hh in hits:
+                if hh["dir"] == htf_dir:
+                    aligned_hit = hh
+                    break
 
         pair_state = {
             "name": p["name"],
@@ -137,6 +156,8 @@ def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None,
             "zones_hit": hits,
             "fired": aligned_hit is not None,
             "fired_zone": aligned_hit,
+            "htf_swing": {"tf": p["structure"], "ready": htf_ready,
+                          "uptrend": htf_up, "downtrend": htf_down, "dir": htf_dir},
             "bars": {p["structure"]: len(struct.get("c", [])) if struct else 0,
                      p["entry"]: len(entry.get("c", [])) if entry else 0},
         }
@@ -147,25 +168,8 @@ def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None,
             engage_reason = (
                 f"{p['entry']} แตะโซน {aligned_hit['kind']} ของ {p['structure']} "
                 f"({aligned_hit['low']}–{aligned_hit['high']}) "
-                f"ตรงกับเทรน {trend['overall']} — เข้าเงื่อนไขให้ AI วิเคราะห์"
+                f"ตามทิศ HTF {htf_dir} — เข้าเงื่อนไขให้ AI วิเคราะห์"
             )
-
-        # Higher-TF Stoch (9,3,3) swing direction for THIS pair's structure TF
-        # (H1 for scalp, H4 for intraday). The lower-TF entry swing may only
-        # fire when the higher TF's own Stoch swing agrees — a real top-down
-        # swing filter, not just an EMA-slope trend read. Requires native H4
-        # bars (mt5_direct) to have enough structure; if the HTF swing isn't
-        # ready (too few OB/OS swings), the pair is blocked (strict default).
-        htf_up = htf_down = False
-        htf_ready = False
-        if struct and len(struct.get("c", [])) >= 20:
-            htf_swing = stoch_swing_engine.detect_stoch_swings(
-                struct.get("h", []), struct.get("l", []), struct.get("c", []))
-            htf_up = htf_swing.get("uptrend", {}).get("valid", False)
-            htf_down = htf_swing.get("downtrend", {}).get("valid", False)
-            htf_ready = htf_swing.get("ready", False)
-        pair_state["htf_swing"] = {"tf": p["structure"], "ready": htf_ready,
-                                   "uptrend": htf_up, "downtrend": htf_down}
 
         # Check Stoch (9,3,3) Swing Engine + Engulfing trigger per pair
         if not engage and entry and len(entry.get("c", [])) >= 20:
