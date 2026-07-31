@@ -48,6 +48,8 @@ import session_summary
 import signal_log
 import monitor
 import mt5_direct
+import swing_manager
+import stoch_swing_engine
 import mtf_engine
 import smc_analysis
 import trading_hours
@@ -147,6 +149,54 @@ async def broadcast(message: AgentMessage):
         clients.remove(ws)
 
 
+async def _manage_swings(live: dict):
+    """Per-cycle management of active Stoch-swing plans: add the one reserved
+    DCA position when price reaches the two-zones-down trigger, or close every
+    ticket when the swing structure is destroyed. Runs off the REAL MT5
+    position list. Fails safe — any error is logged and never aborts the cycle.
+    """
+    direct = mt5_direct if mt5_direct.available() else None
+    if direct is None:
+        return
+    live_tickets = {p.get("ticket") for p in live.get("positions", [])}
+    px = live.get("symbols", {})
+    for sym in list(swing_manager.snapshot().keys()):
+        try:
+            swing_manager.sync_tickets(sym, live_tickets)
+            if not swing_manager.has_plan(sym):
+                continue
+            q = px.get(sym)
+            if not q:
+                continue
+            price = (q["bid"] + q["ask"]) / 2
+            action = swing_manager.decide(sym, price)
+            if action["action"] == "close_all":
+                for tk in swing_manager.active_tickets(sym):
+                    res = direct.close_ticket(tk)
+                    await broadcast(AgentMessage(agent="ceo",
+                        text=f"🛑 ปิดสวิง {sym} ticket {tk} — {action['reason']} ({res.get('reason')})", kind="info"))
+                swing_manager.forget(sym)
+            elif action["action"] == "dca":
+                dca_decision = {"symbol": sym, "action": action["side"],
+                                "risk_pct": action["risk_pct"], "sl": action["sl"],
+                                "tp": swing_manager.snapshot()[sym].get("ob1")}
+                send = order_executor.send_order(dca_decision, risk_manager.state.equity)
+                if send.get("sent"):
+                    exec_r = None
+                    for _ in range(6):
+                        await asyncio.sleep(0.5)
+                        exec_r = order_executor.try_read_result(send["id"])
+                        if exec_r:
+                            break
+                    if exec_r and exec_r.get("success"):
+                        swing_manager.add_ticket(sym, exec_r["ticket"])
+                        risk_manager.record_ticket_risk(exec_r["ticket"], action["risk_pct"])
+                        await broadcast(AgentMessage(agent="ceo",
+                            text=f"➕ ถัวไม้ 2 {sym} {action['side']} {action['risk_pct']}R — {action['reason']}", kind="info"))
+        except Exception as e:
+            print(f"[_manage_swings] {sym} error (continuing): {e!r}")
+
+
 async def run_cycle():
     global cycle_index, equity_baseline_set
     symbol = symbol_cycle[cycle_index % len(symbol_cycle)]
@@ -163,6 +213,9 @@ async def run_cycle():
         tripped = kill_switch.auto_trip_if_needed(risk_manager)
         if tripped:
             await broadcast(AgentMessage(agent="ceo", text=f"Kill switch ตัดอัตโนมัติ — {tripped}", kind="info"))
+        # Manage active Stoch-swing plans (DCA add / structure-break close)
+        # BEFORE scanning for new entries.
+        await _manage_swings(live)
 
     snapshot = data_agent.tick(symbol)
     await broadcast(data_agent.report(snapshot))
@@ -282,6 +335,20 @@ async def run_cycle():
             AgentMessage(agent="ceo", text=f"Signal ผ่านทุกเกณฑ์แต่ Kill Switch ปิดอยู่ — ไม่ส่งออเดอร์ ({kill_switch.status()['tripped_reason']})", kind="info")
         )
     elif decision["action"] != "no_trade" and risk["approved"]:
+        # Stoch-swing entries: build the OS1↔OB1 fibo DCA plan. When there's
+        # room to average ("far"), the FIRST order takes only the initial
+        # fraction (0.5R) and the manager adds the reserved half later at the
+        # two-zones-down trigger — combined risk stays ≤1R. base_risk_pct keeps
+        # the full approved risk for that combined budget.
+        swing_plan = None
+        base_risk_pct = decision.get("risk_pct")
+        lv = (chosen.get("swing_levels") or {}) if chosen else {}
+        if chosen and chosen.get("kind") == "stoch_swing" and lv.get("os1") and lv.get("ob1"):
+            swing_plan = stoch_swing_engine.fibo_dca_plan(
+                chosen.get("entry_price") or snapshot["price"], lv["os1"], lv["ob1"], decision["action"])
+            if swing_plan.get("ready"):
+                decision["risk_pct"] = round(base_risk_pct * swing_plan["initial_fraction"], 2)
+
         # Send the order FIRST. A signal is only persisted to signals.db
         # once it becomes a REAL trade (a confirmed MT5 fill with a ticket).
         # Previously we logged before sending, so orders that never executed
@@ -312,6 +379,12 @@ async def run_cycle():
                 )
                 risk_manager.record_ticket_risk(exec_result["ticket"], decision["risk_pct"])
                 signal_log.set_ticket(signal_id, exec_result["ticket"])
+                # Arm the swing manager for DCA / structure-break management.
+                if swing_plan and swing_plan.get("ready"):
+                    swing_manager.register(
+                        symbol, decision["action"],
+                        chosen.get("entry_price") or exec_result.get("filled_price") or snapshot["price"],
+                        lv["os1"], lv["ob1"], exec_result["ticket"], base_risk_pct, swing_plan)
                 notifier.notify_trade_opened(
                     ticket=exec_result["ticket"],
                     symbol=symbol,
@@ -686,6 +759,12 @@ def sync_cost_guard(real_thb: float):
 @app.get("/monitor/status")
 def get_monitor_status():
     return monitor.status()
+
+
+@app.get("/swing-manager/status")
+def get_swing_manager_status():
+    """Active Stoch-swing plans currently managed for DCA / structure close."""
+    return {"active_plans": swing_manager.snapshot()}
 
 
 @app.get("/collect-mode")

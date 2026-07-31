@@ -184,6 +184,9 @@ def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None,
 
         # Primary trigger (weight 60): LTF Stoch swing in the HTF direction
         # confirmed by a multi-bar engulfing — this is the actual entry setup.
+        # swing_levels carry OS1/OB1/OS2 so the caller can build the fibo DCA
+        # plan and the OS1 hard stop.
+        swing_levels = None
         if entry and len(entry.get("c", [])) >= 20 and htf_dir is not None:
             entry_c = entry.get("c", [])
             entry_h = entry.get("h", [])
@@ -198,12 +201,16 @@ def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None,
                     score += 60
                     cand_dir, cand_kind = "bullish", "stoch_swing"
                     cand_reason = f"🌊 สวิง Stoch ขาขึ้น {p['structure']}+{p['entry']} (HTF&LTF L2>L1) + Engulfing"
+                    swing_levels = {"os1": up.get("l1_price"), "ob1": up.get("h1_price"),
+                                    "os2": up.get("l2_price")}
             elif down.get("valid") and htf_down:
                 eng_sell = stoch_swing_engine.check_multi_candle_engulfing(entry_h, entry_l, entry_o, entry_c, down.get("ob2_index"), side="sell")
                 if eng_sell.get("engulfed"):
                     score += 60
                     cand_dir, cand_kind = "bearish", "stoch_swing"
                     cand_reason = f"🌊 สวิง Stoch ขาลง {p['structure']}+{p['entry']} (HTF&LTF H2<H1) + Engulfing"
+                    swing_levels = {"os1": down.get("l1_price"), "ob1": down.get("h1_price"),
+                                    "os2": down.get("h2_price")}
 
         # Confluence (weight 25): an SMC zone hit in the HTF direction. On its
         # own it can still engage (so pullback-to-zone setups aren't lost), but
@@ -225,8 +232,10 @@ def analyze(m1: dict | None, h1: dict | None, price: float, atr: float | None,
         pair_state["entry_score"] = score
         if score > 0 and cand_dir is not None:
             candidates.append({"name": p["name"], "structure": p["structure"],
-                               "entry": p["entry"], "score": score, "dir": cand_dir,
-                               "kind": cand_kind, "reason": cand_reason})
+                               "entry": p["entry"], "entry_price": round(entry_price, 5),
+                               "score": score, "dir": cand_dir,
+                               "kind": cand_kind, "reason": cand_reason,
+                               "swing_levels": swing_levels})
 
     # Pick the single prettiest pair across scalp/intraday.
     if candidates:

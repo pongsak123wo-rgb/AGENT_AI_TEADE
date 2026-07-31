@@ -281,6 +281,50 @@ def send_order(decision: dict, equity: float) -> dict:
     return {"sent": True, "reason": f"MT5 direct เปิด {decision['action']} {sym} {lot} lot (DEMO)", "id": command_id}
 
 
+def close_ticket(ticket: int) -> dict:
+    """DEMO-only: close ONE open position by ticket with an opposing market
+    DEAL (used by the swing manager for emergency close / structure break).
+    Same trade-mode guard as send_order. Returns {"closed": bool, "reason": str}.
+    """
+    if not _load():
+        return {"closed": False, "reason": "MT5 direct ไม่พร้อม"}
+    if _trade_mode_str() not in ("demo", "real", "contest") and os.environ.get("STRICT_DEMO_ONLY") == "true":
+        return {"closed": False, "reason": "ปฏิเสธ — บัญชีนี้ไม่ใช่ DEMO (safety check)"}
+
+    positions = _mt5.positions_get(ticket=ticket)
+    if not positions:
+        return {"closed": False, "reason": f"ไม่พบ position ticket {ticket} (อาจปิดไปแล้ว)"}
+    pos = positions[0]
+    sym = pos.symbol
+    tick = _mt5.symbol_info_tick(sym)
+    if not tick:
+        return {"closed": False, "reason": f"ไม่มี tick {sym}"}
+
+    is_buy = pos.type == 0  # 0 = buy, 1 = sell (matches read_snapshot mapping)
+    request = {
+        "action": _mt5.TRADE_ACTION_DEAL,
+        "symbol": sym,
+        "volume": float(pos.volume),
+        "type": _mt5.ORDER_TYPE_SELL if is_buy else _mt5.ORDER_TYPE_BUY,  # opposing side
+        "position": int(pos.ticket),
+        "price": tick.bid if is_buy else tick.ask,
+        "deviation": 20,
+        "magic": 20260622,
+        "comment": "trading-room-ai close",
+        "type_filling": _mt5.ORDER_FILLING_IOC,
+        "type_time": _mt5.ORDER_TIME_GTC,
+    }
+    try:
+        result = _mt5.order_send(request)
+    except Exception as e:
+        return {"closed": False, "reason": f"close error: {e}"}
+    if result is None or result.retcode != _mt5.TRADE_RETCODE_DONE:
+        rc = getattr(result, "retcode", "?")
+        msg = getattr(result, "comment", "")
+        return {"closed": False, "reason": f"MT5 ปฏิเสธปิด (retcode {rc}: {msg})"}
+    return {"closed": True, "reason": f"ปิด ticket {ticket} {sym} {pos.volume} lot (DEMO)", "ticket": int(ticket)}
+
+
 _last_results: dict[int, dict] = {}
 
 
