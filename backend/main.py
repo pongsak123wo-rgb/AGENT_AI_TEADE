@@ -244,6 +244,23 @@ async def run_cycle():
     decision = await asyncio.to_thread(ceo_agent.decide, technical, {}, risk, snapshot)
     await broadcast(ceo_agent.report(decision))
 
+    # Top-down direction guard: the pair engaged only in its higher-TF Stoch
+    # swing direction (mtf["chosen"]["dir"]), but the LLM/CEO can still hand
+    # back the opposite bias. Never let a real order fire against the chosen
+    # HTF direction — that's exactly the "buy inside a downtrend" case. Map
+    # bullish->buy / bearish->sell and veto any mismatch to no_trade.
+    chosen = mtf.get("chosen") or {}
+    chosen_action = {"bullish": "buy", "bearish": "sell"}.get(chosen.get("dir"))
+    if chosen_action and decision["action"] not in ("no_trade", chosen_action):
+        await broadcast(AgentMessage(
+            agent="ceo",
+            text=(f"⛔ ปฏิเสธ — AI เสนอ {decision['action']} สวนทิศ HTF ของคู่ {chosen.get('name')} "
+                  f"({chosen.get('dir')}) ที่เลือกไว้ ไม่ส่งออเดอร์สวนเทรน"),
+            kind="info",
+        ))
+        decision = {"action": "no_trade", "reason": "สวนทิศ HTF ที่เลือก (top-down guard)",
+                    "council": decision.get("council")}
+
     # Transparent, code-computed factor sheet for this decision — never a
     # pure LLM black box. Built from the real numbers, deterministic.
     if decision["action"] != "no_trade":
