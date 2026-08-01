@@ -32,8 +32,12 @@ import ml_model
 from knowledge_base import retrieve
 from llm_providers import cerebras, gemini, groq
 
-# LLM providers with automatic fallback: Groq -> Cerebras -> Gemini
-PROVIDERS = [groq, cerebras, gemini]
+# Provider order by real hit-rate on our own closed trades: cerebras (~0.45,
+# free) first, gemini (~0.50, paid but cheap and budgeted) second, groq LAST —
+# groq scored 0.0 accuracy, so it should only ever answer when both others are
+# down. Anti-churn (risk.py re-entry cooldown) keeps call volume — and thus
+# gemini cost — low despite gemini moving up the order.
+PROVIDERS = [cerebras, gemini, groq]
 
 SYSTEM_PROMPT = """คุณคือ Technical Analysis Agent ในทีมเทรด หน้าที่คือตัดสินว่ามี setup เทรดที่น่าสนใจหรือไม่
 จากค่า indicator ที่ให้มา (เป็นข้อเท็จจริง ห้ามสมมติค่าเอง) — มี RSI, EMA fast/slow (เทรนด์ระยะสั้น),
@@ -208,30 +212,45 @@ def analyze(symbol: str, indicator_snapshot: dict) -> dict:
     raw, provider_name = _call_first_available(SYSTEM_PROMPT, user_message)
 
     if raw is None:
-        # Fallback to Expert Technical Analysis Rule-Engine when cloud APIs are temporarily busy/cooldowned.
+        # Fallback rule-engine for when every cloud LLM is unavailable. It must
+        # NOT drive the strategy: the Stoch-swing entry gate already ran in
+        # mtf_engine (engagement + direction), so this only needs to give a
+        # conservative bias from the REAL indicators actually present.
+        #
+        # Two old bugs made it dominate and churn: (1) it read a "stoch_k"
+        # field that indicators.py never produces, so it was always 50 and the
+        # "Stoch (9,3,3) K=50.0" reason was fake; (2) confidence 75 sailed past
+        # the CEO threshold every cycle. Now it uses the genuine rsi/ema fields,
+        # requires real confluence, returns bias="none" when signals conflict,
+        # and caps confidence low so marginal setups get filtered out.
         rsi = float(indicator_snapshot.get("rsi", 50))
         ema_trend = str(indicator_snapshot.get("ema_trend", "")).lower()
-        pa = str(indicator_snapshot.get("price_action", "")).lower()
-        stoch_k = float(indicator_snapshot.get("stoch_k", 50))
+        rsi_state = str(indicator_snapshot.get("rsi_state", "")).lower()
+        engulf = str(indicator_snapshot.get("engulfing", "")).lower()
+        pin = str(indicator_snapshot.get("pin_bar", "")).lower()
 
-        if "bullish" in pa or "engulfing" in pa or "up" in ema_trend or stoch_k < 35:
+        bull = (ema_trend == "up") + ("bull" in engulf) + ("hammer" in pin) + (rsi < 45)
+        bear = (ema_trend == "down") + ("bear" in engulf) + ("shooting" in pin) + (rsi > 55)
+
+        if bull >= 2 and bull > bear:
             fallback_bias = "buy"
-            fallback_reason = f"⚡ สแกนสวิงขาขึ้น Stoch (9,3,3) K={stoch_k:.1f} + Price Action {pa or 'bullish'} (วิเคราะห์โดย Rule-Engine)"
-        elif "bearish" in pa or "down" in ema_trend or stoch_k > 65:
+        elif bear >= 2 and bear > bull:
             fallback_bias = "sell"
-            fallback_reason = f"⚡ สแกนสวิงขาลง Stoch (9,3,3) K={stoch_k:.1f} + Price Action {pa or 'bearish'} (วิเคราะห์โดย Rule-Engine)"
         else:
-            fallback_bias = "buy" if rsi < 50 else "sell"
-            fallback_reason = f"⚡ วิเคราะห์ตามเทรนด์ RSI={rsi:.1f} + Stoch K={stoch_k:.1f} (วิเคราะห์โดย Rule-Engine)"
+            fallback_bias = "none"  # no clear confluence → don't force a trade
+        fallback_reason = (
+            f"Rule-Engine สำรอง (ไม่มี LLM ว่าง): EMA {ema_trend}, RSI {rsi:.0f} ({rsi_state}), "
+            f"engulf={engulf or '-'} → {fallback_bias} [confluence bull={bull}/bear={bear}]"
+        )
 
         return {
             "bias": fallback_bias,
-            "confidence": 75,
+            "confidence": 45 if fallback_bias != "none" else 0,
             "reason": fallback_reason[:120],
             "indicators": indicator_snapshot,
             "knowledge_used": knowledge_chunks,
-            "knowledge_cited": True,
-            "knowledge_note": "วิเคราะห์โดยสมองกล Rule-Engine สำรองตามตำรา Stoch (9,3,3) + RSI (14)",
+            "knowledge_cited": False,
+            "knowledge_note": "Rule-Engine สำรอง — ใช้ indicator จริงล้วน ไม่ใช่ค่า Stoch ปลอม",
             "provider": "rule_engine_fallback"
         }
 

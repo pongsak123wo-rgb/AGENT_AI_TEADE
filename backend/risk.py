@@ -5,9 +5,17 @@ rules) — there is no hardcoded prop-firm assumption here.
 """
 from __future__ import annotations
 
+import time
+
 import correlation_agent
 import signal_log
 from dataclasses import dataclass, field
+
+# After a position on a symbol is opened, block any new entry on that same
+# symbol for this long. Stops the churn where a setup that closes fast (a
+# breakeven scratch) is re-entered on the very next cycle, paying spread over
+# and over. One swing setup should be given room to play out, not machine-gunned.
+REENTRY_COOLDOWN_SEC = 15 * 60
 
 
 @dataclass
@@ -54,6 +62,8 @@ class RiskManager:
             equity_peak=start_equity,
             equity=start_equity,
         )
+        # symbol -> unix time we last opened an entry on it (anti-churn).
+        self.last_entry_at: dict[str, float] = {}
         # ticket -> the risk_pct WE actually approved for that trade.
         # Populated the moment our own order fills (main.py calls
         # record_ticket_risk with the real MT5 ticket). Lets
@@ -153,6 +163,19 @@ class RiskManager:
                     "approved": False,
                     "lot": 0.0,
                     "reason": f"ห้ามเบิ้ลไม้ — {symbol} มี {bias} เปิดอยู่แล้ว ticket #{pos.ticket}",
+                }
+
+        # Anti-churn — refuse a fresh entry on a symbol we just traded, so a
+        # fast breakeven scratch can't be machine-gunned back into the market.
+        last = self.last_entry_at.get(symbol)
+        if last is not None:
+            waited = time.time() - last
+            if waited < REENTRY_COOLDOWN_SEC:
+                return {
+                    "approved": False,
+                    "lot": 0.0,
+                    "reason": (f"Cooldown — เพิ่งเข้า {symbol} ไป {waited/60:.0f} นาทีที่แล้ว "
+                               f"(รอครบ {REENTRY_COOLDOWN_SEC//60} นาที) กันเข้าซ้ำถี่"),
                 }
 
         # Hard concurrency cap — plain count, so it can't be widened by
@@ -284,6 +307,7 @@ class RiskManager:
         self.state.open_positions.append(
             OpenPosition(symbol=symbol, side=side, risk_pct=risk_pct if risk_pct is not None else self.config.risk_per_trade_pct)
         )
+        self.last_entry_at[symbol] = time.time()
 
     def close_position(self, symbol: str, side: str) -> bool:
         """Removes one matching open position so total_open_risk_pct
