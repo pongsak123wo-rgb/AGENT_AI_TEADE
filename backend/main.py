@@ -224,17 +224,19 @@ async def _manage_swings(live: dict):
                     swing_manager.forget(sym)
                     break  # nothing else to do once flat
                 elif kind == "move_be":
-                    for tk in swing_manager.active_tickets(sym):
-                        direct.modify_sl(tk, action["sl"])
-                    swing_manager.mark_be_done(sym)
-                    await broadcast(AgentMessage(agent="ceo",
-                        text=f"🛡️ กันทุน {sym} — {action['reason']}", kind="info"))
+                    ok = any(direct.modify_sl(tk, action["sl"]).get("ok")
+                             for tk in swing_manager.active_tickets(sym))
+                    if ok:  # only mark done if a stop actually moved — else retry next cycle
+                        swing_manager.mark_be_done(sym)
+                        await broadcast(AgentMessage(agent="ceo",
+                            text=f"🛡️ กันทุน {sym} — {action['reason']}", kind="info"))
                 elif kind == "partial":
-                    for tk in swing_manager.active_tickets(sym):
-                        direct.close_partial(tk, action["fraction"])
-                    swing_manager.mark_partial_done(sym)
-                    await broadcast(AgentMessage(agent="ceo",
-                        text=f"💰 {sym} — {action['reason']}", kind="info"))
+                    ok = any(direct.close_partial(tk, action["fraction"]).get("ok")
+                             for tk in swing_manager.active_tickets(sym))
+                    if ok:
+                        swing_manager.mark_partial_done(sym)
+                        await broadcast(AgentMessage(agent="ceo",
+                            text=f"💰 {sym} — {action['reason']}", kind="info"))
                 elif kind == "dca":
                     dca_decision = {"symbol": sym, "action": action["side"],
                                     "risk_pct": action["risk_pct"], "sl": action["sl"],

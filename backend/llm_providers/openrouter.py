@@ -20,13 +20,20 @@ NAME = "openrouter"
 _ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 # Free, no-billing models that currently EXIST on OpenRouter (verified against
 # /api/v1/models — the old llama-3.3/deepseek/qwen :free IDs were retired and
-# 404'd, which silently returned None). First that answers wins; order ≈
-# quality. Re-check /api/v1/models if these ever start 404'ing again.
+# 404'd, which silently returned None). FAST/small first: the 120B model is
+# slow and was dragging each engaged cycle out to ~20s+; a smaller model that
+# answers quickly keeps the loop responsive. Re-check /api/v1/models if these
+# start 404'ing again.
 _MODELS = [
-    "nvidia/nemotron-3-super-120b-a12b:free",
     "openai/gpt-oss-20b:free",
     "google/gemma-4-31b-it:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
 ]
+# Per-model timeout. Kept tight: this call happens on every engaged cycle for
+# BOTH the technical read and the CEO vote, so a long timeout × 3 models × 2
+# calls stalls the whole loop. 12s is enough for a free model to respond or be
+# skipped for the next.
+_TIMEOUT = 12
 
 
 def generate(system_prompt: str, user_prompt: str) -> str | None:
@@ -60,7 +67,7 @@ def generate(system_prompt: str, user_prompt: str) -> str | None:
         }).encode("utf-8")
         try:
             req = urllib.request.Request(_ENDPOINT, data=body, headers=headers, method="POST")
-            with urllib.request.urlopen(req, timeout=30) as resp:
+            with urllib.request.urlopen(req, timeout=_TIMEOUT) as resp:
                 data = json.loads(resp.read().decode("utf-8"))
             choices = data.get("choices") or []
             if choices:
