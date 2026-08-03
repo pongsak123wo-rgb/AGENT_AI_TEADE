@@ -30,13 +30,15 @@ import llm_circuit_breaker
 import signal_log
 import ml_model
 from knowledge_base import retrieve
-from llm_providers import cerebras, gemini, groq
+from llm_providers import cerebras, groq, openrouter
 
 # FREE providers only. Gemini is intentionally excluded: a paid trial once
 # burned ~400 THB in a single night, so the user disabled it. Keeping it out of
 # the list (not just unsetting the key) guarantees it can never be billed by
-# accident. cerebras (~0.45) leads; groq (0.0 hit-rate) is the last resort.
-PROVIDERS = [cerebras, groq]
+# accident. cerebras (~0.45) leads, then openrouter (free :free models — a 3rd
+# option so a Cerebras+Groq rate-limit doesn't force the rule engine), then
+# groq (0.0 hit-rate) last resort.
+PROVIDERS = [cerebras, openrouter, groq]
 
 SYSTEM_PROMPT = """คุณคือ Technical Analysis Agent ในทีมเทรด หน้าที่คือตัดสินว่ามี setup เทรดที่น่าสนใจหรือไม่
 จากค่า indicator ที่ให้มา (เป็นข้อเท็จจริง ห้ามสมมติค่าเอง) — มี RSI, EMA fast/slow (เทรนด์ระยะสั้น),

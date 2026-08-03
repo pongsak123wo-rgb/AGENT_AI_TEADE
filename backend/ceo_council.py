@@ -16,12 +16,13 @@ import os
 import cost_model
 import llm_circuit_breaker
 import signal_log
-from llm_providers import cerebras, gemini, groq
+from llm_providers import cerebras, groq, openrouter
 
 # CEO Council LLM providers — FREE only. Gemini is intentionally excluded
 # (a paid trial once burned ~400 THB overnight); removing it from the list
-# guarantees no accidental billing. cerebras leads, groq last resort.
-PROVIDERS = [cerebras, groq]
+# guarantees no accidental billing. cerebras leads, then openrouter (free),
+# then groq last resort.
+PROVIDERS = [cerebras, openrouter, groq]
 
 SYSTEM_PROMPT = """คุณคือ CEO Agent ในทีมเทรด ตัดสินใจว่าจะ "อนุมัติ" หรือ "ปฏิเสธ" สัญญาณเทรดที่เสนอมา
 โดยพิจารณาจากรายงานของ Technical Analysis, News Agent, Risk Management, และ "ค่า indicator ดิบ" ที่ให้มาด้วยตัวเอง

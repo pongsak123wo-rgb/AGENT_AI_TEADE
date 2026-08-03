@@ -82,7 +82,7 @@ def status() -> dict:
     # --- LLM providers ---
     cb = llm_circuit_breaker.status()
     cooling = [n for n, s in cb.items() if s.get("in_cooldown")]
-    all_known = {"groq", "cerebras"}
+    all_known = {"groq", "cerebras", "openrouter"}
     if all_known.issubset(set(cooling)):
         alerts.append("LLM ทุกตัวติด cooldown — CEO ตัดสินใจไม่ได้ ไม่มีไม้ใหม่")
     elif cooling:
