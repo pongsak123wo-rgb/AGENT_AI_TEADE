@@ -32,12 +32,11 @@ import ml_model
 from knowledge_base import retrieve
 from llm_providers import cerebras, gemini, groq
 
-# Provider order by real hit-rate on our own closed trades: cerebras (~0.45,
-# free) first, gemini (~0.50, paid but cheap and budgeted) second, groq LAST —
-# groq scored 0.0 accuracy, so it should only ever answer when both others are
-# down. Anti-churn (risk.py re-entry cooldown) keeps call volume — and thus
-# gemini cost — low despite gemini moving up the order.
-PROVIDERS = [cerebras, gemini, groq]
+# FREE providers only. Gemini is intentionally excluded: a paid trial once
+# burned ~400 THB in a single night, so the user disabled it. Keeping it out of
+# the list (not just unsetting the key) guarantees it can never be billed by
+# accident. cerebras (~0.45) leads; groq (0.0 hit-rate) is the last resort.
+PROVIDERS = [cerebras, groq]
 
 SYSTEM_PROMPT = """คุณคือ Technical Analysis Agent ในทีมเทรด หน้าที่คือตัดสินว่ามี setup เทรดที่น่าสนใจหรือไม่
 จากค่า indicator ที่ให้มา (เป็นข้อเท็จจริง ห้ามสมมติค่าเอง) — มี RSI, EMA fast/slow (เทรนด์ระยะสั้น),

@@ -1,14 +1,12 @@
-"""CEO Agent — votes on whether to act on a signal using Gemini API.
+"""CEO Agent — votes on whether to act on a signal using free cloud LLMs.
 The approval threshold self-adjusts (45-65%) based on the system's
 recent real win rate — not a fixed bar. The Risk Agent's veto is checked
 before any vote is taken and overrides the council unconditionally — no
 vote can override a risk rejection.
 
-PROVIDERS is [gemini] only — the local Ollama fallback (typhoon2) was
-removed; the system now relies on the Gemini API for all live trading
-decisions. If Gemini errors or is in circuit-breaker cooldown (e.g.
-quota exhausted), the CEO abstains rather than falling back to a weaker
-local model — better no vote than a low-quality one.
+PROVIDERS is free-only (cerebras, groq); Gemini was removed to avoid paid
+billing. If every provider errors or is in circuit-breaker cooldown, the
+CEO abstains rather than forcing a low-quality vote.
 """
 from __future__ import annotations
 
@@ -20,8 +18,10 @@ import llm_circuit_breaker
 import signal_log
 from llm_providers import cerebras, gemini, groq
 
-# CEO Council LLM providers: Groq + Cerebras + Gemini
-PROVIDERS = [groq, cerebras, gemini]
+# CEO Council LLM providers — FREE only. Gemini is intentionally excluded
+# (a paid trial once burned ~400 THB overnight); removing it from the list
+# guarantees no accidental billing. cerebras leads, groq last resort.
+PROVIDERS = [cerebras, groq]
 
 SYSTEM_PROMPT = """คุณคือ CEO Agent ในทีมเทรด ตัดสินใจว่าจะ "อนุมัติ" หรือ "ปฏิเสธ" สัญญาณเทรดที่เสนอมา
 โดยพิจารณาจากรายงานของ Technical Analysis, News Agent, Risk Management, และ "ค่า indicator ดิบ" ที่ให้มาด้วยตัวเอง
