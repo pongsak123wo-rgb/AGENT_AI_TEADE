@@ -14,6 +14,28 @@ from __future__ import annotations
 
 import json
 import os
+import re
+
+
+def _extract_json_obj(text: str) -> dict | None:
+    """Pull the JSON object out of an LLM reply even when the model wraps it in
+    ```json fences or emits reasoning prose before it (some free 'reasoning'
+    models print their chain-of-thought first, e.g. 'We need to produce
+    JSON...'). Returns the parsed dict, or None if nothing parseable is found."""
+    if not text:
+        return None
+    t = re.sub(r"```$", "", re.sub(r"^```(?:json)?", "", text.strip()).strip()).strip()
+    try:
+        return json.loads(t)
+    except Exception:
+        pass
+    start, end = t.find("{"), t.rfind("}")
+    if start != -1 and end > start:
+        try:
+            return json.loads(t[start:end + 1])
+        except Exception:
+            return None
+    return None
 
 from pathlib import Path
 from dotenv import load_dotenv
@@ -278,15 +300,14 @@ def analyze(symbol: str, indicator_snapshot: dict, chosen: dict | None = None) -
             "provider": "rule_engine_fallback"
         }
 
-    cleaned = raw.strip().strip("```json").strip("```")
     try:
-        result = json.loads(cleaned)
+        result = _extract_json_obj(raw)
         if not isinstance(result, dict) or result.get("bias") not in ("buy", "sell", "none"):
             # Valid JSON, but not the schema we asked for (e.g. the local
             # model invented its own field names like "trade_signal") —
             # treat the same as a parse failure instead of silently
             # leaving "bias" missing/None downstream.
-            raise json.JSONDecodeError("unexpected schema", cleaned, 0)
+            raise json.JSONDecodeError("unexpected schema", raw or "", 0)
 
         bias = result.get("bias", "none").lower()
         conf = result.get("confidence", 0)
