@@ -169,10 +169,13 @@ async def _manage_breakeven(live: dict):
         targets = signal_log.get_open_trade_targets()
     except Exception:
         return
+    # Tickets under swing_manager get their breakeven there (against TP1=OB1);
+    # this general manager only handles the rest (e.g. rule-engine entries).
+    swing_tickets = {t for pl in swing_manager.snapshot().values() for t in pl.get("tickets", [])}
     for p in live.get("positions", []):
         tk = p.get("ticket")
         tgt = targets.get(tk)
-        if not tgt or tk in _moved_to_be:
+        if not tgt or tk in _moved_to_be or tk in swing_tickets:
             continue
         q = px.get(tgt["symbol"])
         if not q:
@@ -211,30 +214,44 @@ async def _manage_swings(live: dict):
             if not q:
                 continue
             price = (q["bid"] + q["ask"]) / 2
-            action = swing_manager.decide(sym, price)
-            if action["action"] == "close_all":
-                for tk in swing_manager.active_tickets(sym):
-                    res = direct.close_ticket(tk)
-                    await broadcast(AgentMessage(agent="ceo",
-                        text=f"🛑 ปิดสวิง {sym} ticket {tk} — {action['reason']} ({res.get('reason')})", kind="info"))
-                swing_manager.forget(sym)
-            elif action["action"] == "dca":
-                dca_decision = {"symbol": sym, "action": action["side"],
-                                "risk_pct": action["risk_pct"], "sl": action["sl"],
-                                "tp": swing_manager.snapshot()[sym].get("ob1")}
-                send = order_executor.send_order(dca_decision, risk_manager.state.equity)
-                if send.get("sent"):
-                    exec_r = None
-                    for _ in range(6):
-                        await asyncio.sleep(0.5)
-                        exec_r = order_executor.try_read_result(send["id"])
-                        if exec_r:
-                            break
-                    if exec_r and exec_r.get("success"):
-                        swing_manager.add_ticket(sym, exec_r["ticket"])
-                        risk_manager.record_ticket_risk(exec_r["ticket"], action["risk_pct"])
+            for action in swing_manager.decide(sym, price):
+                kind = action["action"]
+                if kind == "close_all":
+                    for tk in swing_manager.active_tickets(sym):
+                        res = direct.close_ticket(tk)
                         await broadcast(AgentMessage(agent="ceo",
-                            text=f"➕ ถัวไม้ 2 {sym} {action['side']} {action['risk_pct']}R — {action['reason']}", kind="info"))
+                            text=f"🛑 ปิดสวิง {sym} #{tk} — {action['reason']} ({res.get('reason')})", kind="info"))
+                    swing_manager.forget(sym)
+                    break  # nothing else to do once flat
+                elif kind == "move_be":
+                    for tk in swing_manager.active_tickets(sym):
+                        direct.modify_sl(tk, action["sl"])
+                    swing_manager.mark_be_done(sym)
+                    await broadcast(AgentMessage(agent="ceo",
+                        text=f"🛡️ กันทุน {sym} — {action['reason']}", kind="info"))
+                elif kind == "partial":
+                    for tk in swing_manager.active_tickets(sym):
+                        direct.close_partial(tk, action["fraction"])
+                    swing_manager.mark_partial_done(sym)
+                    await broadcast(AgentMessage(agent="ceo",
+                        text=f"💰 {sym} — {action['reason']}", kind="info"))
+                elif kind == "dca":
+                    dca_decision = {"symbol": sym, "action": action["side"],
+                                    "risk_pct": action["risk_pct"], "sl": action["sl"],
+                                    "tp": action["tp"]}
+                    send = order_executor.send_order(dca_decision, risk_manager.state.equity)
+                    if send.get("sent"):
+                        exec_r = None
+                        for _ in range(6):
+                            await asyncio.sleep(0.5)
+                            exec_r = order_executor.try_read_result(send["id"])
+                            if exec_r:
+                                break
+                        if exec_r and exec_r.get("success"):
+                            swing_manager.add_ticket(sym, exec_r["ticket"])
+                            risk_manager.record_ticket_risk(exec_r["ticket"], action["risk_pct"])
+                            await broadcast(AgentMessage(agent="ceo",
+                                text=f"➕ ถัวไม้ 2 {sym} {action['side']} {action['risk_pct']}R — {action['reason']}", kind="info"))
         except Exception as e:
             print(f"[_manage_swings] {sym} error (continuing): {e!r}")
 
@@ -386,13 +403,24 @@ async def run_cycle():
         # two-zones-down trigger — combined risk stays ≤1R. base_risk_pct keeps
         # the full approved risk for that combined budget.
         swing_plan = None
+        swing_tp2 = None
         base_risk_pct = decision.get("risk_pct")
         lv = (chosen.get("swing_levels") or {}) if chosen else {}
-        if chosen and chosen.get("kind") == "stoch_swing" and lv.get("os1") and lv.get("ob1"):
-            swing_plan = stoch_swing_engine.fibo_dca_plan(
-                chosen.get("entry_price") or snapshot["price"], lv["os1"], lv["ob1"], decision["action"])
+        if chosen and chosen.get("kind") == "stoch_swing" and lv.get("os1") and lv.get("ob1") and lv.get("os2"):
+            entry_px = chosen.get("entry_price") or snapshot["price"]
+            swing_plan = stoch_swing_engine.fibo_dca_plan(entry_px, lv["os1"], lv["ob1"], decision["action"])
             if swing_plan.get("ready"):
                 decision["risk_pct"] = round(base_risk_pct * swing_plan["initial_fraction"], 2)
+                # Use the strategy's own levels for the order: SL = OS1 (or an
+                # ATR stop if OS1 gives RR < 1.5), TP = TP2 (fibo 161.8%). TP1
+                # (OB1) is banked in Python via a partial close, not the order.
+                atr = (technical.get("indicators", {}) or {}).get("atr") or 0.0
+                sl, _tp1, _note = stoch_swing_engine.check_rr_and_sl(
+                    entry_px, lv["os1"], lv["ob1"], atr, decision["action"])
+                _t1, swing_tp2 = stoch_swing_engine.calculate_fibo_161_8(
+                    lv["ob1"], lv["os2"], decision["action"])
+                decision["sl"] = sl
+                decision["tp"] = swing_tp2
 
         # Send the order FIRST. A signal is only persisted to signals.db
         # once it becomes a REAL trade (a confirmed MT5 fill with a ticket).
@@ -424,12 +452,12 @@ async def run_cycle():
                 )
                 risk_manager.record_ticket_risk(exec_result["ticket"], decision["risk_pct"])
                 signal_log.set_ticket(signal_id, exec_result["ticket"])
-                # Arm the swing manager for DCA / structure-break management.
+                # Arm the swing manager for BE / partial-TP1 / DCA / structure.
                 if swing_plan and swing_plan.get("ready"):
                     swing_manager.register(
                         symbol, decision["action"],
                         chosen.get("entry_price") or exec_result.get("filled_price") or snapshot["price"],
-                        lv["os1"], lv["ob1"], exec_result["ticket"], base_risk_pct, swing_plan)
+                        lv["os1"], lv["ob1"], swing_tp2, exec_result["ticket"], base_risk_pct, swing_plan)
                 notifier.notify_trade_opened(
                     ticket=exec_result["ticket"],
                     symbol=symbol,

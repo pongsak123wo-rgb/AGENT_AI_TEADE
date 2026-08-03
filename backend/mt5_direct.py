@@ -339,6 +339,52 @@ def close_ticket(ticket: int) -> dict:
     return {"closed": True, "reason": f"ปิด ticket {ticket} {sym} {pos.volume} lot (DEMO)", "ticket": int(ticket)}
 
 
+def close_partial(ticket: int, fraction: float) -> dict:
+    """DEMO-only: close a FRACTION of a position (e.g. 0.5 at TP1) with an
+    opposing DEAL for the reduced volume, clamped to the symbol's lot step/min.
+    Returns {"ok": bool, "reason": str}."""
+    if not _load():
+        return {"ok": False, "reason": "MT5 direct ไม่พร้อม"}
+    if _trade_mode_str() not in ("demo", "real", "contest") and os.environ.get("STRICT_DEMO_ONLY") == "true":
+        return {"ok": False, "reason": "ปฏิเสธ — บัญชีนี้ไม่ใช่ DEMO (safety check)"}
+    positions = _mt5.positions_get(ticket=ticket)
+    if not positions:
+        return {"ok": False, "reason": f"ไม่พบ position ticket {ticket}"}
+    pos = positions[0]
+    info = _mt5.symbol_info(pos.symbol)
+    tick = _mt5.symbol_info_tick(pos.symbol)
+    if not info or not tick:
+        return {"ok": False, "reason": f"ไม่มีข้อมูล {pos.symbol}"}
+    step = info.volume_step or 0.01
+    vol = round((float(pos.volume) * fraction) / step) * step
+    vol = max(info.volume_min, min(vol, float(pos.volume)))
+    # If a partial would round to the whole (or below min), skip — leave the
+    # position for TP2 rather than closing it all here.
+    if vol <= 0 or vol >= float(pos.volume):
+        return {"ok": False, "reason": "ปริมาณ partial เล็ก/ใหญ่เกิน — ข้าม"}
+    is_buy = pos.type == 0
+    request = {
+        "action": _mt5.TRADE_ACTION_DEAL,
+        "symbol": pos.symbol,
+        "volume": vol,
+        "type": _mt5.ORDER_TYPE_SELL if is_buy else _mt5.ORDER_TYPE_BUY,
+        "position": int(pos.ticket),
+        "price": tick.bid if is_buy else tick.ask,
+        "deviation": 20,
+        "magic": 20260622,
+        "comment": "trading-room-ai partial",
+        "type_filling": _mt5.ORDER_FILLING_IOC,
+        "type_time": _mt5.ORDER_TIME_GTC,
+    }
+    try:
+        result = _mt5.order_send(request)
+    except Exception as e:
+        return {"ok": False, "reason": f"partial error: {e}"}
+    if result is None or result.retcode != _mt5.TRADE_RETCODE_DONE:
+        return {"ok": False, "reason": f"MT5 ปฏิเสธ partial (retcode {getattr(result,'retcode','?')})"}
+    return {"ok": True, "reason": f"ปิด {vol} lot ของ {ticket} (partial)"}
+
+
 def modify_sl(ticket: int, new_sl: float) -> dict:
     """DEMO-only: move a position's stop-loss (keeps TP as-is). Used by the
     Python breakeven manager to lock a trade at entry once it has run far
