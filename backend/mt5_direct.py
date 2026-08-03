@@ -339,6 +339,35 @@ def close_ticket(ticket: int) -> dict:
     return {"closed": True, "reason": f"ปิด ticket {ticket} {sym} {pos.volume} lot (DEMO)", "ticket": int(ticket)}
 
 
+def modify_sl(ticket: int, new_sl: float) -> dict:
+    """DEMO-only: move a position's stop-loss (keeps TP as-is). Used by the
+    Python breakeven manager to lock a trade at entry once it has run far
+    enough toward TP1. Returns {"ok": bool, "reason": str}."""
+    if not _load():
+        return {"ok": False, "reason": "MT5 direct ไม่พร้อม"}
+    if _trade_mode_str() not in ("demo", "real", "contest") and os.environ.get("STRICT_DEMO_ONLY") == "true":
+        return {"ok": False, "reason": "ปฏิเสธ — บัญชีนี้ไม่ใช่ DEMO (safety check)"}
+    positions = _mt5.positions_get(ticket=ticket)
+    if not positions:
+        return {"ok": False, "reason": f"ไม่พบ position ticket {ticket}"}
+    pos = positions[0]
+    request = {
+        "action": _mt5.TRADE_ACTION_SLTP,
+        "symbol": pos.symbol,
+        "position": int(pos.ticket),
+        "sl": float(new_sl),
+        "tp": float(pos.tp),  # unchanged
+    }
+    try:
+        result = _mt5.order_send(request)
+    except Exception as e:
+        return {"ok": False, "reason": f"modify error: {e}"}
+    if result is None or result.retcode != _mt5.TRADE_RETCODE_DONE:
+        rc = getattr(result, "retcode", "?")
+        return {"ok": False, "reason": f"MT5 ปฏิเสธเลื่อน SL (retcode {rc})"}
+    return {"ok": True, "reason": f"เลื่อน SL ticket {ticket} → {new_sl}"}
+
+
 _last_results: dict[int, dict] = {}
 
 

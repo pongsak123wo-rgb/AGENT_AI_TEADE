@@ -264,6 +264,23 @@ def get_open_tickets() -> list[int]:
     return [r["ticket"] for r in rows]
 
 
+def get_open_trade_targets() -> dict[int, dict]:
+    """ticket -> {symbol, action, entry, sl, tp} for every still-open trade.
+    Used by the Python-side breakeven manager to know each position's entry
+    and TP1 without re-deriving them."""
+    conn = _connect()
+    rows = conn.execute(
+        "SELECT ticket, symbol, action, entry, sl, tp FROM signals "
+        "WHERE status = 'open' AND ticket IS NOT NULL AND entry IS NOT NULL AND tp IS NOT NULL"
+    ).fetchall()
+    conn.close()
+    out = {}
+    for r in rows:
+        out[r["ticket"]] = {"symbol": r["symbol"], "action": r["action"],
+                            "entry": r["entry"], "sl": r["sl"], "tp": r["tp"]}
+    return out
+
+
 def settle_by_real_deals(close_info: dict, live_tickets: set | None = None) -> list[dict]:
     """Settle open signals using REAL closed-deal data from MT5.
 

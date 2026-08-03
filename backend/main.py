@@ -149,6 +149,48 @@ async def broadcast(message: AgentMessage):
         clients.remove(ws)
 
 
+_moved_to_be: set = set()  # tickets already moved to breakeven (avoid re-modifying)
+BE_TRIGGER_FRAC = 0.75     # move SL to entry only after price runs 75% toward TP1
+
+
+async def _manage_breakeven(live: dict):
+    """Move a position's SL to entry (breakeven) ONLY once price has travelled
+    >= 75% of the way from entry to TP1 — never before, so a trade still has
+    room to breathe / average early on instead of being scratched flat. Covers
+    EVERY open trade (not just registered swings). All management is Python-side
+    now; the MT5 EA only executes orders. Fails safe."""
+    direct = mt5_direct if mt5_direct.available() else None
+    if direct is None:
+        return
+    px = live.get("symbols", {})
+    live_tickets = {p.get("ticket") for p in live.get("positions", [])}
+    _moved_to_be.intersection_update(live_tickets)  # forget closed tickets
+    try:
+        targets = signal_log.get_open_trade_targets()
+    except Exception:
+        return
+    for p in live.get("positions", []):
+        tk = p.get("ticket")
+        tgt = targets.get(tk)
+        if not tgt or tk in _moved_to_be:
+            continue
+        q = px.get(tgt["symbol"])
+        if not q:
+            continue
+        price = (q["bid"] + q["ask"]) / 2
+        entry, tp = tgt["entry"], tgt["tp"]
+        span = tp - entry
+        if span == 0:
+            continue
+        progress = (price - entry) / span  # 1.0 = reached TP1 (works both sides)
+        if progress >= BE_TRIGGER_FRAC:
+            res = direct.modify_sl(tk, entry)
+            if res.get("ok"):
+                _moved_to_be.add(tk)
+                await broadcast(AgentMessage(agent="ceo",
+                    text=f"🛡️ กันทุน {tgt['symbol']} #{tk} — ราคาวิ่งถึง {progress*100:.0f}% ของ TP1 เลื่อน SL มา entry", kind="info"))
+
+
 async def _manage_swings(live: dict):
     """Per-cycle management of active Stoch-swing plans: add the one reserved
     DCA position when price reaches the two-zones-down trigger, or close every
@@ -213,8 +255,9 @@ async def run_cycle():
         tripped = kill_switch.auto_trip_if_needed(risk_manager)
         if tripped:
             await broadcast(AgentMessage(agent="ceo", text=f"Kill switch ตัดอัตโนมัติ — {tripped}", kind="info"))
-        # Manage active Stoch-swing plans (DCA add / structure-break close)
-        # BEFORE scanning for new entries.
+        # Manage open trades BEFORE scanning for new entries: breakeven-at-75%
+        # of TP1 for every position, then Stoch-swing DCA / structure close.
+        await _manage_breakeven(live)
         await _manage_swings(live)
 
     snapshot = data_agent.tick(symbol)
