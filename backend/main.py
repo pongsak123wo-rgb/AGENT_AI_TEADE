@@ -412,17 +412,28 @@ async def run_cycle():
             entry_px = chosen.get("entry_price") or snapshot["price"]
             swing_plan = stoch_swing_engine.fibo_dca_plan(entry_px, lv["os1"], lv["ob1"], decision["action"])
             if swing_plan.get("ready"):
-                decision["risk_pct"] = round(base_risk_pct * swing_plan["initial_fraction"], 2)
-                # Use the strategy's own levels for the order: SL = OS1 (or an
-                # ATR stop if OS1 gives RR < 1.5), TP = TP2 (fibo 161.8%). TP1
-                # (OB1) is banked in Python via a partial close, not the order.
-                atr = (technical.get("indicators", {}) or {}).get("atr") or 0.0
-                sl, _tp1, _note = stoch_swing_engine.check_rr_and_sl(
-                    entry_px, lv["os1"], lv["ob1"], atr, decision["action"])
+                # TP = TP2 (fibo 161.8%). TP1 (OB1) is banked in Python via a
+                # partial close, not on the order.
                 _t1, swing_tp2 = stoch_swing_engine.calculate_fibo_161_8(
                     lv["ob1"], lv["os2"], decision["action"])
-                decision["sl"] = sl
                 decision["tp"] = swing_tp2
+
+                # SL choice must stay CONSISTENT with the DCA plan, or the two
+                # fight: an average-in ("far") setup needs the structural OS1
+                # stop (its fibo DCA zones sit just above OS1, and the blended
+                # entry after averaging is what makes the RR acceptable). A
+                # single-entry ("near") setup has no averaging, so it takes the
+                # RR-protected stop — OS1, or a tighter ATR stop if OS1 is too
+                # far for RR ≥ 1.5.
+                if swing_plan.get("far"):
+                    sl = lv["os1"]
+                else:
+                    atr = (technical.get("indicators", {}) or {}).get("atr") or 0.0
+                    sl, _tp1, _note = stoch_swing_engine.check_rr_and_sl(
+                        entry_px, lv["os1"], lv["ob1"], atr, decision["action"])
+                decision["sl"] = sl
+                swing_plan = {**swing_plan, "hard_sl": sl}
+                decision["risk_pct"] = round(base_risk_pct * swing_plan["initial_fraction"], 2)
 
         # Send the order FIRST. A signal is only persisted to signals.db
         # once it becomes a REAL trade (a confirmed MT5 fill with a ticket).

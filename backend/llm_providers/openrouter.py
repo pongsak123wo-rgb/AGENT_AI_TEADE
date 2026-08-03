@@ -24,10 +24,15 @@ _ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
 # slow and was dragging each engaged cycle out to ~20s+; a smaller model that
 # answers quickly keeps the loop responsive. Re-check /api/v1/models if these
 # start 404'ing again.
+# INSTRUCTION-tuned models first (gemma "-it"), reasoning models last.
+# gpt-oss-20b/nemotron are reasoning models: they emit a long chain-of-thought
+# ("We need to produce JSON...") that ate the whole token budget before any
+# JSON was written, so the reply had no JSON to parse at all. Gemma-it replies
+# with the JSON directly.
 _MODELS = [
-    "openai/gpt-oss-20b:free",
     "google/gemma-4-31b-it:free",
-    "nvidia/nemotron-3-super-120b-a12b:free",
+    "google/gemma-4-26b-a4b-it:free",
+    "openai/gpt-oss-20b:free",
 ]
 # Per-model timeout. Kept tight: this call happens on every engaged cycle for
 # BOTH the technical read and the CEO vote, so a long timeout × 3 models × 2
@@ -63,7 +68,14 @@ def generate(system_prompt: str, user_prompt: str) -> str | None:
                 {"role": "user", "content": user_prompt},
             ],
             "temperature": 0,
-            "max_tokens": 1500,
+            "max_tokens": 2000,
+            # Ask for a JSON object directly. On models that honor it, reasoning
+            # is kept out of `content` so the reply is clean JSON; models that
+            # don't support it error out and we fall through to the next.
+            "response_format": {"type": "json_object"},
+            # For reasoning models that DO run, cap the hidden reasoning so it
+            # can't consume the whole budget before the JSON is written.
+            "reasoning": {"max_tokens": 200},
         }).encode("utf-8")
         try:
             req = urllib.request.Request(_ENDPOINT, data=body, headers=headers, method="POST")
