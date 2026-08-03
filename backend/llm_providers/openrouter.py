@@ -18,11 +18,14 @@ from dotenv import load_dotenv
 NAME = "openrouter"
 
 _ENDPOINT = "https://openrouter.ai/api/v1/chat/completions"
-# Free, no-billing models. First that answers wins; order = rough quality.
+# Free, no-billing models that currently EXIST on OpenRouter (verified against
+# /api/v1/models — the old llama-3.3/deepseek/qwen :free IDs were retired and
+# 404'd, which silently returned None). First that answers wins; order ≈
+# quality. Re-check /api/v1/models if these ever start 404'ing again.
 _MODELS = [
-    "meta-llama/llama-3.3-70b-instruct:free",
-    "deepseek/deepseek-chat:free",
-    "qwen/qwen-2.5-72b-instruct:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "openai/gpt-oss-20b:free",
+    "google/gemma-4-31b-it:free",
 ]
 
 
