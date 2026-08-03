@@ -99,7 +99,7 @@ def _call_first_available(system_prompt: str, user_message: str) -> tuple[str | 
     return None, None
 
 
-def analyze(symbol: str, indicator_snapshot: dict) -> dict:
+def analyze(symbol: str, indicator_snapshot: dict, chosen: dict | None = None) -> dict:
     query = (
         f"{symbol} RSI {indicator_snapshot.get('rsi')} ({indicator_snapshot.get('rsi_state')}), "
         f"EMA trend {indicator_snapshot.get('ema_trend')}, price near support/resistance"
@@ -228,23 +228,46 @@ def analyze(symbol: str, indicator_snapshot: dict) -> dict:
         engulf = str(indicator_snapshot.get("engulfing", "")).lower()
         pin = str(indicator_snapshot.get("pin_bar", "")).lower()
 
-        bull = (ema_trend == "up") + ("bull" in engulf) + ("hammer" in pin) + (rsi < 45)
-        bear = (ema_trend == "down") + ("bear" in engulf) + ("shooting" in pin) + (rsi > 55)
-
-        if bull >= 2 and bull > bear:
-            fallback_bias = "buy"
-        elif bear >= 2 and bear > bull:
-            fallback_bias = "sell"
+        # If the mtf engine already validated a full Stoch swing (OS→OB→OS +
+        # engulfing + HTF aligned), TRUST it: the swing IS the strategy, so the
+        # fallback should follow its direction rather than re-judging from raw
+        # indicators and vetoing a good setup to "none" (which is what happened
+        # when the LLM was down). Only stoch_swing engagements get this trust;
+        # weaker SMC-zone touches still go through the confluence check below.
+        ck = (chosen or {}).get("kind")
+        cdir = (chosen or {}).get("dir")
+        if ck == "stoch_swing" and cdir in ("bullish", "bearish"):
+            fallback_bias = "buy" if cdir == "bullish" else "sell"
+            fallback_reason = (
+                f"Rule-Engine ตามสวิง Stoch ที่ mtf ยืนยันแล้ว ({chosen.get('name')} "
+                f"score {chosen.get('score')}) → {fallback_bias} (ไม่มี LLM ว่าง)"
+            )
+            bull = bear = 0  # for the (unused) log fields below
         else:
-            fallback_bias = "none"  # no clear confluence → don't force a trade
-        fallback_reason = (
-            f"Rule-Engine สำรอง (ไม่มี LLM ว่าง): EMA {ema_trend}, RSI {rsi:.0f} ({rsi_state}), "
-            f"engulf={engulf or '-'} → {fallback_bias} [confluence bull={bull}/bear={bear}]"
-        )
+            bull = (ema_trend == "up") + ("bull" in engulf) + ("hammer" in pin) + (rsi < 45)
+            bear = (ema_trend == "down") + ("bear" in engulf) + ("shooting" in pin) + (rsi > 55)
+            if bull >= 2 and bull > bear:
+                fallback_bias = "buy"
+            elif bear >= 2 and bear > bull:
+                fallback_bias = "sell"
+            else:
+                fallback_bias = "none"  # no clear confluence → don't force a trade
+            fallback_reason = (
+                f"Rule-Engine สำรอง (ไม่มี LLM ว่าง): EMA {ema_trend}, RSI {rsi:.0f} ({rsi_state}), "
+                f"engulf={engulf or '-'} → {fallback_bias} [confluence bull={bull}/bear={bear}]"
+            )
 
+        # A validated Stoch swing is a real setup → give it enough confidence to
+        # clear the CEO threshold; a raw-indicator confluence guess stays modest.
+        if fallback_bias == "none":
+            fb_conf = 0
+        elif ck == "stoch_swing":
+            fb_conf = 60
+        else:
+            fb_conf = 45
         return {
             "bias": fallback_bias,
-            "confidence": 45 if fallback_bias != "none" else 0,
+            "confidence": fb_conf,
             "reason": fallback_reason[:120],
             "indicators": indicator_snapshot,
             "knowledge_used": knowledge_chunks,

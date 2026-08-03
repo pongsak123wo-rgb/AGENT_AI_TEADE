@@ -321,7 +321,7 @@ async def run_cycle():
 
     await broadcast(AgentMessage(agent="technical", text=f"🎯 {symbol}: {mtf['reason']} → เรียก AI วิเคราะห์", kind="info",
                                  data={"mtf": mtf, "symbol": symbol}))
-    technical = await asyncio.to_thread(technical_agent.reason, snapshot["symbol"], indicator_pre)
+    technical = await asyncio.to_thread(technical_agent.reason, snapshot["symbol"], indicator_pre, mtf.get("chosen"))
     await broadcast(technical_agent.report(technical))
     await asyncio.sleep(0.5)
 

@@ -140,11 +140,13 @@ class TechnicalAgent:
 
         return indicator_snapshot
 
-    def reason(self, symbol: str, indicator_snapshot: dict) -> dict:
+    def reason(self, symbol: str, indicator_snapshot: dict, chosen: dict | None = None) -> dict:
         """Paid phase — hand the precomputed indicators to the LLM. Only
         called once the zone-watch gate says price is at a meaningful
-        level, so this (token-spending) call fires far less often."""
-        return llm_analysis.analyze(symbol, indicator_snapshot)
+        level, so this (token-spending) call fires far less often. `chosen`
+        is the mtf-selected setup (name/dir/kind) so the rule-engine fallback
+        can follow a validated Stoch swing instead of re-judging it away."""
+        return llm_analysis.analyze(symbol, indicator_snapshot, chosen)
 
     def analyze(self, snapshot: dict) -> dict:
         """Full pipeline (compute + reason). Kept for callers/tests that
