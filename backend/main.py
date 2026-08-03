@@ -593,12 +593,17 @@ async def cycle_loop():
 
 async def auto_backup_loop():
     import auto_backup
+    # Back up shortly AFTER startup (not only every 6h). The old loop slept 6h
+    # first, so during heavy redeploys — where the backend restarts more often
+    # than every 6h — a backup never fired at all (it last ran 2026-07-27).
+    # A 2-min initial delay lets startup settle, then it repeats every 6h.
+    await asyncio.sleep(120)
     while True:
-        await asyncio.sleep(6 * 3600)  # Every 6 hours
         try:
             await asyncio.to_thread(auto_backup.push_backup_to_github)
         except Exception as e:
             print(f"[Backup Loop] Error: {e}")
+        await asyncio.sleep(6 * 3600)  # then every 6 hours
 
 
 @app.on_event("startup")
