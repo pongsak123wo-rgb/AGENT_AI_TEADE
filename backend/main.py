@@ -478,6 +478,21 @@ async def run_cycle():
                     swing_plan = {**swing_plan, "hard_sl": round(sl, 5)}
                     decision["risk_pct"] = round(base_risk_pct * swing_plan["initial_fraction"], 2)
 
+                    # Minimum reward:risk. TP2 (fibo 161.8 off OB1↔OS2) is tiny
+                    # when the pullback is shallow (OS2 near OB1) while OS1 is
+                    # far — e.g. XAUUSD SL 30 vs TP 4 = RR 0.14, a setup you'd
+                    # have to win ~88% of the time just to break even. Skip any
+                    # swing whose reward doesn't at least roughly match the risk.
+                    sl_d = abs(entry_px - decision["sl"])
+                    tp_d = abs((decision.get("tp") or entry_px) - entry_px)
+                    rr = (tp_d / sl_d) if sl_d else 0
+                    if rr < 1.0:
+                        await broadcast(AgentMessage(agent="risk",
+                            text=(f"⛔ ข้าม {symbol} — RR แย่ ({rr:.2f}): TP ห่าง {tp_d:.5f} / SL ห่าง "
+                                  f"{sl_d:.5f} สวิงบิดเบี้ยว ไม่คุ้มเสี่ยง"), kind="info"))
+                        decision = {"action": "no_trade", "reason": f"RR ต่ำเกิน ({rr:.2f} < 1.0)",
+                                    "council": decision.get("council")}
+
         if decision["action"] == "no_trade":
             return  # vetoed above (e.g. noise-swing SL too tight) — nothing to send
 
