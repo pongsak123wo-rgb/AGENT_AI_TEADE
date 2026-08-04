@@ -19,7 +19,14 @@ send_order refuses unless account trade_mode is demo.
 from __future__ import annotations
 
 import os
+import threading
 import time
+
+# The MetaTrader5 package is NOT thread-safe: concurrent calls from the async
+# cycle loop (read_snapshot via a thread) and a backtest data pull (a sync API
+# endpoint in FastAPI's threadpool) make copy_rates return None. Serialise every
+# terminal call through one lock so they can't clash.
+_MT5_LOCK = threading.RLock()
 
 # Symbols to snapshot — mirrors main.SYMBOLS (kept here to avoid a circular
 # import). Override with MT5_SYMBOLS="EURUSD,GBPUSD,..." if the VPS terminal
@@ -115,15 +122,16 @@ def deep_history(symbols: list[str] | None = None, m1_count: int = 20000,
     if not _load():
         return {"symbols": {}}
     out = {}
-    for sym in (symbols or _symbols()):
-        try:
-            _mt5.symbol_select(sym, True)  # ensure deep history is loadable
-        except Exception:
-            pass
-        m1 = _rates_t(sym, _mt5.TIMEFRAME_M1, m1_count)
-        h1 = _rates_t(sym, _mt5.TIMEFRAME_H1, h1_count)
-        if m1 and h1:
-            out[sym] = {"m1": m1, "h1": h1}
+    with _MT5_LOCK:
+        for sym in (symbols or _symbols()):
+            try:
+                _mt5.symbol_select(sym, True)  # ensure deep history is loadable
+            except Exception:
+                pass
+            m1 = _rates_t(sym, _mt5.TIMEFRAME_M1, m1_count)
+            h1 = _rates_t(sym, _mt5.TIMEFRAME_H1, h1_count)
+            if m1 and h1:
+                out[sym] = {"m1": m1, "h1": h1}
     return {"symbols": out}
 
 
@@ -133,6 +141,7 @@ def read_snapshot() -> dict | None:
     them when present."""
     if not _load():
         return None
+    _MT5_LOCK.acquire()
     try:
         acct = _mt5.account_info()
         if not acct:
@@ -201,6 +210,8 @@ def read_snapshot() -> dict | None:
         }
     except Exception:
         return None
+    finally:
+        _MT5_LOCK.release()
 
 
 def get_close_info(tickets: list[int], lookback_days: int = 7) -> dict:
