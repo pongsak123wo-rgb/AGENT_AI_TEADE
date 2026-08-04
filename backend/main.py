@@ -967,7 +967,16 @@ def run_backtest_v2(entry_tf: str = "M15", max_bars: int = 1500,
         hist = None
         if deep and mt5_direct.available():
             hist = mt5_direct.deep_history(m1_count=m1_count, h1_count=2500)
-        return backtest_v2.run_portfolio(entry_tf=entry_tf, max_bars=max_bars, hist=hist)
+            got = {s: len((v.get("m1") or {}).get("c", []))
+                   for s, v in (hist.get("symbols") or {}).items()}
+            if not any(got.values()):
+                return {"error": "deep_history ดึงไม่ได้", "available": mt5_direct.available(),
+                        "got": got}
+        result = backtest_v2.run_portfolio(entry_tf=entry_tf, max_bars=max_bars, hist=hist)
+        if hist:
+            result["_deep_m1_bars"] = {s: len((v.get("m1") or {}).get("c", []))
+                                       for s, v in (hist.get("symbols") or {}).items()}
+        return result
     except Exception as e:
         return {"error": repr(e)}
 

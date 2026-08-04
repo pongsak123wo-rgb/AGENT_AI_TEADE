@@ -116,6 +116,10 @@ def deep_history(symbols: list[str] | None = None, m1_count: int = 20000,
         return {"symbols": {}}
     out = {}
     for sym in (symbols or _symbols()):
+        try:
+            _mt5.symbol_select(sym, True)  # ensure deep history is loadable
+        except Exception:
+            pass
         m1 = _rates_t(sym, _mt5.TIMEFRAME_M1, m1_count)
         h1 = _rates_t(sym, _mt5.TIMEFRAME_H1, h1_count)
         if m1 and h1:
