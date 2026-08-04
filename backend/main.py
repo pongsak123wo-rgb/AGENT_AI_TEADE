@@ -410,8 +410,24 @@ async def run_cycle():
         lv = (chosen.get("swing_levels") or {}) if chosen else {}
         if chosen and chosen.get("kind") == "stoch_swing" and lv.get("os1") and lv.get("ob1") and lv.get("os2"):
             entry_px = chosen.get("entry_price") or snapshot["price"]
-            swing_plan = stoch_swing_engine.fibo_dca_plan(entry_px, lv["os1"], lv["ob1"], decision["action"])
-            if swing_plan.get("ready"):
+            # Structural validity: the entry (OS2) must sit INSIDE the swing,
+            # between OS1 (support/SL) and OB1 (the previous high = TP1), so
+            # there's real room up to TP1 and the stop is below. When price has
+            # already run ABOVE OB1 by the time we act, we'd be chasing: TP1
+            # ends up below entry (tiny/negative reward) while SL at OS1 is far
+            # — e.g. XAUUSD entry 4060.96 with OB1 4058.17, SL 4031.55 = RR
+            # ~0.13. Skip those stale/chased setups.
+            lo, hi = min(lv["os1"], lv["ob1"]), max(lv["os1"], lv["ob1"])
+            if not (lo < entry_px < hi):
+                await broadcast(AgentMessage(agent="risk",
+                    text=(f"⛔ ข้าม {symbol} — ราคาเข้า {entry_px} หลุดโครงสร้างสวิง "
+                          f"(OS1 {lv['os1']}–OB1 {lv['ob1']}) = ไล่ราคา RR แย่"), kind="info"))
+                decision = {"action": "no_trade", "reason": "entry นอกโครงสร้าง OS1↔OB1 (ไล่ราคา)",
+                            "council": decision.get("council")}
+                swing_plan = None
+            else:
+                swing_plan = stoch_swing_engine.fibo_dca_plan(entry_px, lv["os1"], lv["ob1"], decision["action"])
+            if swing_plan and swing_plan.get("ready"):
                 # TP = TP2 (fibo 161.8%). TP1 (OB1) is banked in Python via a
                 # partial close, not on the order.
                 _t1, swing_tp2 = stoch_swing_engine.calculate_fibo_161_8(
