@@ -114,15 +114,7 @@ def _rates_t(sym: str, timeframe, count: int) -> dict | None:
     }
 
 
-def _rates_range(sym, timeframe, days: int) -> dict | None:
-    """Pull bars by DATE RANGE. copy_rates_from_pos is capped at whatever the
-    terminal already caches (~a few hundred M1 bars → 'Invalid params' beyond
-    that); copy_rates_range makes the terminal DOWNLOAD the window from the
-    broker, so it reaches far deeper."""
-    import datetime as _dt
-    to = _dt.datetime.now()
-    frm = to - _dt.timedelta(days=days)
-    rates = _mt5.copy_rates_range(sym, timeframe, frm, to)
+def _pack(rates) -> dict | None:
     if rates is None or len(rates) == 0:
         return None
     return {
@@ -132,6 +124,26 @@ def _rates_range(sym, timeframe, days: int) -> dict | None:
         "c": [float(r["close"]) for r in rates],
         "t": [float(r["time"]) for r in rates],
     }
+
+
+def _rates_range(sym, timeframe, days: int) -> dict | None:
+    """Deep pull. copy_rates_from_pos is capped at the terminal's small cache
+    ('Invalid params' beyond ~1k M1 bars); copy_rates_range downloads the
+    window from the broker. Range needs UTC-ish datetimes with a forward buffer
+    on `to` (MT5 compares against server time, ahead of the broker's UTC), and
+    falls back to the largest from_pos pull that the cache allows."""
+    import datetime as _dt
+    to = _dt.datetime.utcnow() + _dt.timedelta(days=1)   # buffer past server time
+    frm = to - _dt.timedelta(days=days + 1)
+    r = _pack(_mt5.copy_rates_range(sym, timeframe, frm, to))
+    if r:
+        return r
+    # Fallback: from_pos with a count under the "Invalid params" ceiling.
+    for cnt in (1500, 1000, 500):
+        r = _pack(_mt5.copy_rates_from_pos(sym, timeframe, 0, cnt))
+        if r:
+            return r
+    return None
 
 
 def deep_history(symbols: list[str] | None = None, days: int = 20,
