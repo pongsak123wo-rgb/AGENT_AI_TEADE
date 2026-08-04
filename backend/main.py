@@ -962,17 +962,20 @@ def mt5_probe(count: int = 1000):
     import mt5_direct as m
     if not m.available():
         return {"available": False}
+    import contextlib
+    lock = getattr(m, "_MT5_LOCK", None) or contextlib.nullcontext()
+    has_lock = hasattr(m, "_MT5_LOCK")
     out = {}
     for sym in ["XAUUSD", "EURUSD"]:
         try:
-            with m._MT5_LOCK:
+            with lock:
                 m._mt5.symbol_select(sym, True)
                 r = m._mt5.copy_rates_from_pos(sym, m._mt5.TIMEFRAME_M1, 0, count)
                 out[sym] = {"bars": (len(r) if r is not None else None),
                             "last_error": str(m._mt5.last_error())}
         except Exception as e:
             out[sym] = {"exc": repr(e)}
-    return {"available": True, "count_asked": count, "result": out}
+    return {"available": True, "has_lock": has_lock, "count_asked": count, "result": out}
 
 
 @app.get("/backtest/v2")
