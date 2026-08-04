@@ -435,6 +435,25 @@ async def run_cycle():
                 swing_plan = {**swing_plan, "hard_sl": sl}
                 decision["risk_pct"] = round(base_risk_pct * swing_plan["initial_fraction"], 2)
 
+                # Noise-swing guard: on M5 the Stoch pivots often catch tiny
+                # wiggles, so OS1 sits 1-3 pips from entry and the SL is inside
+                # the spread — the trade is scratched the instant it opens. If
+                # the stop is closer than a few spreads (or a fraction of ATR),
+                # this "swing" is just noise; skip it instead of feeding SLs.
+                sl_dist = abs(entry_px - (decision["sl"] or entry_px))
+                spread = snapshot.get("spread") or 0.0
+                atr_g = (technical.get("indicators", {}) or {}).get("atr") or 0.0
+                min_dist = max(spread * 3.0, atr_g * 0.4)
+                if min_dist > 0 and sl_dist < min_dist:
+                    await broadcast(AgentMessage(agent="risk",
+                        text=(f"⛔ ข้าม {symbol} — สวิงเล็กเกิน (SL ห่างแค่ {sl_dist:.5f} < ขั้นต่ำ "
+                              f"{min_dist:.5f}) เป็น noise ไม่ใช่สวิงจริง เลี่ยงโดน spread กวาด"), kind="info"))
+                    decision = {"action": "no_trade", "reason": "สวิงเล็กเกิน (SL แคบกว่า spread×3)",
+                                "council": decision.get("council")}
+
+        if decision["action"] == "no_trade":
+            return  # vetoed above (e.g. noise-swing SL too tight) — nothing to send
+
         # Send the order FIRST. A signal is only persisted to signals.db
         # once it becomes a REAL trade (a confirmed MT5 fill with a ticket).
         # Previously we logged before sending, so orders that never executed
