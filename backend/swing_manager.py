@@ -109,8 +109,12 @@ def decide(symbol: str, price: float, latest_ob_high: float | None = None) -> li
         return [{"action": "close_all", "reason": brk["reason"]}]
 
     actions = []
-    entry, ob1 = pl["entry"], pl["ob1"]
-    span = ob1 - entry  # to TP1; sign carries direction
+    entry = pl["entry"]
+    # TP1 is the previous swing extreme on the PROFIT side: OB1 (the high) for a
+    # buy, OS1 (the low) for a sell. Using OB1 for a sell was wrong — OB1 sits
+    # ABOVE the sell entry, so the partial "reached TP1" fired instantly.
+    tp1 = pl["ob1"] if side == "buy" else pl["os1"]
+    span = tp1 - entry  # to TP1; sign carries direction
 
     # 2) Breakeven at >= 75% of the way to TP1.
     if not pl["be_done"] and span != 0:
@@ -119,10 +123,10 @@ def decide(symbol: str, price: float, latest_ob_high: float | None = None) -> li
             actions.append({"action": "move_be", "sl": round(entry, 5),
                             "reason": f"ราคาถึง {progress*100:.0f}% ของ TP1 → กันทุน (SL→entry)"})
 
-    # 3) Partial close at TP1 (OB1 = real previous high).
-    if not pl["partial_done"] and _reached(price, ob1, entry, side):
+    # 3) Partial close at TP1 (buy: OB1 high, sell: OS1 low).
+    if not pl["partial_done"] and _reached(price, tp1, entry, side):
         actions.append({"action": "partial", "fraction": PARTIAL_FRAC,
-                        "reason": f"ถึง TP1 (OB1 {ob1}) → ปิด {int(PARTIAL_FRAC*100)}% ที่เหลือวิ่ง TP2 {pl['tp2']}"})
+                        "reason": f"ถึง TP1 ({tp1}) → ปิด {int(PARTIAL_FRAC*100)}% ที่เหลือวิ่ง TP2 {pl['tp2']}"})
 
     # 4) DCA add on an adverse move to the two-zones-down trigger.
     if pl["dca_armed"] and pl["dca_trigger"] is not None and len(pl["tickets"]) < pl["max_positions"]:

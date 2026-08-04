@@ -442,7 +442,11 @@ async def run_cycle():
                 # RR-protected stop — OS1, or a tighter ATR stop if OS1 is too
                 # far for RR ≥ 1.5.
                 if swing_plan.get("far"):
-                    sl = lv["os1"]
+                    # SL on the CORRECT side: OS1 (below) for a buy, OB1 (above)
+                    # for a sell. Using OS1 for a sell put the stop below the
+                    # entry — the wrong side entirely (MT5 rejects it / it never
+                    # protects). hard_sl from fibo_dca_plan already has this.
+                    sl = swing_plan.get("hard_sl") or (lv["os1"] if decision["action"] == "buy" else lv["ob1"])
                 else:
                     atr = (technical.get("indicators", {}) or {}).get("atr") or 0.0
                     sl, _tp1, _note = stoch_swing_engine.check_rr_and_sl(
