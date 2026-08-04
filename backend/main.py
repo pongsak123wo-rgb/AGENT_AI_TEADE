@@ -955,6 +955,26 @@ def get_mt5_history_status():
     return mt5_history_bridge.status()
 
 
+@app.get("/backtest/mt5-probe")
+def mt5_probe(count: int = 1000):
+    """Diagnose why deep_history returns nothing: what does copy_rates actually
+    return, and what is MT5's last_error?"""
+    import mt5_direct as m
+    if not m.available():
+        return {"available": False}
+    out = {}
+    for sym in ["XAUUSD", "EURUSD"]:
+        try:
+            with m._MT5_LOCK:
+                m._mt5.symbol_select(sym, True)
+                r = m._mt5.copy_rates_from_pos(sym, m._mt5.TIMEFRAME_M1, 0, count)
+                out[sym] = {"bars": (len(r) if r is not None else None),
+                            "last_error": str(m._mt5.last_error())}
+        except Exception as e:
+            out[sym] = {"exc": repr(e)}
+    return {"available": True, "count_asked": count, "result": out}
+
+
 @app.get("/backtest/v2")
 def run_backtest_v2(entry_tf: str = "M15", max_bars: int = 1500,
                     deep: bool = True, m1_count: int = 20000):
