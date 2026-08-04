@@ -968,10 +968,12 @@ def mt5_probe(count: int = 1000):
     out = {}
     for sym in ["XAUUSD", "EURUSD"]:
         try:
+            import datetime as _dt
             with lock:
                 m._mt5.symbol_select(sym, True)
-                r = m._mt5.copy_rates_from_pos(sym, m._mt5.TIMEFRAME_M1, 0, count)
-                out[sym] = {"bars": (len(r) if r is not None else None),
+                to = _dt.datetime.now(); frm = to - _dt.timedelta(days=count)
+                r = m._mt5.copy_rates_range(sym, m._mt5.TIMEFRAME_M1, frm, to)
+                out[sym] = {"m1_bars_over_%dd" % count: (len(r) if r is not None else None),
                             "last_error": str(m._mt5.last_error())}
         except Exception as e:
             out[sym] = {"exc": repr(e)}
@@ -980,7 +982,7 @@ def mt5_probe(count: int = 1000):
 
 @app.get("/backtest/v2")
 def run_backtest_v2(entry_tf: str = "M15", max_bars: int = 1500,
-                    deep: bool = True, m1_count: int = 20000):
+                    deep: bool = True, days: int = 20):
     """Replay the CURRENT strategy (mtf_engine stoch-swing/zone entries) over
     MT5 history — the real test of whether the design has edge. deep=True pulls
     a large window straight from MT5 (~m1_count M1 bars/symbol) instead of the
@@ -989,7 +991,7 @@ def run_backtest_v2(entry_tf: str = "M15", max_bars: int = 1500,
     try:
         hist = None
         if deep and mt5_direct.available():
-            hist = mt5_direct.deep_history(m1_count=m1_count, h1_count=2500)
+            hist = mt5_direct.deep_history(days=days, h1_days=max(days * 6, 120))
             got = {s: len((v.get("m1") or {}).get("c", []))
                    for s, v in (hist.get("symbols") or {}).items()}
             if not any(got.values()):

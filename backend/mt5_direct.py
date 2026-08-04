@@ -114,11 +114,31 @@ def _rates_t(sym: str, timeframe, count: int) -> dict | None:
     }
 
 
-def deep_history(symbols: list[str] | None = None, m1_count: int = 20000,
-                 h1_count: int = 2500) -> dict:
-    """Pull a DEEP window of M1+H1 history straight from MT5 (with timestamps),
-    in the same shape mt5_history_bridge.read_history() returns, so backtest_v2
-    can replay months of bars instead of the ~2000-bar EA export file."""
+def _rates_range(sym, timeframe, days: int) -> dict | None:
+    """Pull bars by DATE RANGE. copy_rates_from_pos is capped at whatever the
+    terminal already caches (~a few hundred M1 bars → 'Invalid params' beyond
+    that); copy_rates_range makes the terminal DOWNLOAD the window from the
+    broker, so it reaches far deeper."""
+    import datetime as _dt
+    to = _dt.datetime.now()
+    frm = to - _dt.timedelta(days=days)
+    rates = _mt5.copy_rates_range(sym, timeframe, frm, to)
+    if rates is None or len(rates) == 0:
+        return None
+    return {
+        "o": [float(r["open"]) for r in rates],
+        "h": [float(r["high"]) for r in rates],
+        "l": [float(r["low"]) for r in rates],
+        "c": [float(r["close"]) for r in rates],
+        "t": [float(r["time"]) for r in rates],
+    }
+
+
+def deep_history(symbols: list[str] | None = None, days: int = 20,
+                 h1_days: int = 120, **_ignore) -> dict:
+    """Pull a DEEP M1+H1 window from MT5 by date range (downloads from the
+    broker, unlike the pos-based pull the terminal caps), in the shape
+    mt5_history_bridge.read_history() returns so backtest_v2 can replay it."""
     if not _load():
         return {"symbols": {}}
     out = {}
@@ -128,8 +148,8 @@ def deep_history(symbols: list[str] | None = None, m1_count: int = 20000,
                 _mt5.symbol_select(sym, True)  # ensure deep history is loadable
             except Exception:
                 pass
-            m1 = _rates_t(sym, _mt5.TIMEFRAME_M1, m1_count)
-            h1 = _rates_t(sym, _mt5.TIMEFRAME_H1, h1_count)
+            m1 = _rates_range(sym, _mt5.TIMEFRAME_M1, days)
+            h1 = _rates_range(sym, _mt5.TIMEFRAME_H1, h1_days)
             if m1 and h1:
                 out[sym] = {"m1": m1, "h1": h1}
     return {"symbols": out}
