@@ -956,12 +956,18 @@ def get_mt5_history_status():
 
 
 @app.get("/backtest/v2")
-def run_backtest_v2(entry_tf: str = "M15", max_bars: int = 600):
+def run_backtest_v2(entry_tf: str = "M15", max_bars: int = 1500,
+                    deep: bool = True, m1_count: int = 20000):
     """Replay the CURRENT strategy (mtf_engine stoch-swing/zone entries) over
-    the exported MT5 history — the real test of whether the design has edge."""
+    MT5 history — the real test of whether the design has edge. deep=True pulls
+    a large window straight from MT5 (~m1_count M1 bars/symbol) instead of the
+    tiny EA-export file, so there are enough trades to be meaningful."""
     import backtest_v2
     try:
-        return backtest_v2.run_portfolio(entry_tf=entry_tf, max_bars=max_bars)
+        hist = None
+        if deep and mt5_direct.available():
+            hist = mt5_direct.deep_history(m1_count=m1_count, h1_count=2500)
+        return backtest_v2.run_portfolio(entry_tf=entry_tf, max_bars=max_bars, hist=hist)
     except Exception as e:
         return {"error": repr(e)}
 

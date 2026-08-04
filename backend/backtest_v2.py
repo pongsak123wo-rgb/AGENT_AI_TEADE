@@ -179,7 +179,8 @@ def _prepare(symbol: str, hist: dict, entry_tf: str) -> dict | None:
 
 
 def run_portfolio(symbols: list[str] | None = None, entry_tf: str = "M15",
-                  max_bars: int = 600, max_concurrent: int = MAX_CONCURRENT) -> dict:
+                  max_bars: int = 600, max_concurrent: int = MAX_CONCURRENT,
+                  hist: dict | None = None) -> dict:
     """Portfolio replay across symbols on one shared clock.
 
     Concurrency and correlation only mean anything at portfolio level: a
@@ -188,7 +189,7 @@ def run_portfolio(symbols: list[str] | None = None, entry_tf: str = "M15",
     on timestamp order, sharing one account, one position cap and one
     correlation check — the same constraints the live risk manager applies.
     """
-    hist = mt5_history_bridge.read_history()
+    hist = hist or mt5_history_bridge.read_history()
     if not hist:
         return {"error": "ไม่มีข้อมูล history (รัน HistoryExporter.mq5 ก่อน)"}
 

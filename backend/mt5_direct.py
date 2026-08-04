@@ -92,6 +92,37 @@ def _rates(sym: str, timeframe, count: int) -> dict | None:
     }
 
 
+def _rates_t(sym: str, timeframe, count: int) -> dict | None:
+    """Same as _rates but includes bar timestamps ('t') — needed to align
+    timeframes and order events in a backtest."""
+    rates = _mt5.copy_rates_from_pos(sym, timeframe, 0, count)
+    if rates is None or len(rates) == 0:
+        return None
+    return {
+        "o": [float(r["open"]) for r in rates],
+        "h": [float(r["high"]) for r in rates],
+        "l": [float(r["low"]) for r in rates],
+        "c": [float(r["close"]) for r in rates],
+        "t": [float(r["time"]) for r in rates],
+    }
+
+
+def deep_history(symbols: list[str] | None = None, m1_count: int = 20000,
+                 h1_count: int = 2500) -> dict:
+    """Pull a DEEP window of M1+H1 history straight from MT5 (with timestamps),
+    in the same shape mt5_history_bridge.read_history() returns, so backtest_v2
+    can replay months of bars instead of the ~2000-bar EA export file."""
+    if not _load():
+        return {"symbols": {}}
+    out = {}
+    for sym in (symbols or _symbols()):
+        m1 = _rates_t(sym, _mt5.TIMEFRAME_M1, m1_count)
+        h1 = _rates_t(sym, _mt5.TIMEFRAME_H1, h1_count)
+        if m1 and h1:
+            out[sym] = {"m1": m1, "h1": h1}
+    return {"symbols": out}
+
+
 def read_snapshot() -> dict | None:
     """Same shape as mt5_bridge.read_snapshot(). Adds native d1_candles
     (real Daily bars) that the EA bridge can't provide — mtf_engine prefers
