@@ -955,6 +955,17 @@ def get_mt5_history_status():
     return mt5_history_bridge.status()
 
 
+@app.get("/backtest/v2")
+def run_backtest_v2(entry_tf: str = "M15", max_bars: int = 600):
+    """Replay the CURRENT strategy (mtf_engine stoch-swing/zone entries) over
+    the exported MT5 history — the real test of whether the design has edge."""
+    import backtest_v2
+    try:
+        return backtest_v2.run_portfolio(entry_tf=entry_tf, max_bars=max_bars)
+    except Exception as e:
+        return {"error": repr(e)}
+
+
 @app.get("/backtest/structure-patterns")
 def get_backtest_structure_patterns():
     return backtest_log.get_structure_patterns()
