@@ -95,8 +95,16 @@ def decide(symbol: str, price: float, latest_ob_high: float | None = None) -> li
     side = pl["side"]
 
     # 1) Structure destroyed → close everything (highest priority, alone).
-    brk = stoch_swing_engine.check_structure_broken(
-        price, pl["os1"], pl["ob1"], latest_ob_high, side)
+    # Use the BUFFERED stop (hard_sl) as the price-break level, not raw OS1, so
+    # the manager's structure-close and the order's SL sit at the same
+    # spread-buffered price and don't fight (raw OS1 would close a tick early).
+    brk_level = pl.get("hard_sl") or (pl["os1"] if side == "buy" else pl["ob1"])
+    if side == "buy":
+        brk = stoch_swing_engine.check_structure_broken(
+            price, brk_level, pl["ob1"], latest_ob_high, side)
+    else:
+        brk = stoch_swing_engine.check_structure_broken(
+            price, pl["os1"], brk_level, latest_ob_high, side)
     if brk["broken"]:
         return [{"action": "close_all", "reason": brk["reason"]}]
 

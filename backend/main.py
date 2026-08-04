@@ -431,25 +431,32 @@ async def run_cycle():
                     atr = (technical.get("indicators", {}) or {}).get("atr") or 0.0
                     sl, _tp1, _note = stoch_swing_engine.check_rr_and_sl(
                         entry_px, lv["os1"], lv["ob1"], atr, decision["action"])
-                decision["sl"] = sl
-                swing_plan = {**swing_plan, "hard_sl": sl}
-                decision["risk_pct"] = round(base_risk_pct * swing_plan["initial_fraction"], 2)
 
-                # Noise-swing guard: on M5 the Stoch pivots often catch tiny
-                # wiggles, so OS1 sits 1-3 pips from entry and the SL is inside
-                # the spread — the trade is scratched the instant it opens. If
-                # the stop is closer than a few spreads (or a fraction of ATR),
-                # this "swing" is just noise; skip it instead of feeding SLs.
-                sl_dist = abs(entry_px - (decision["sl"] or entry_px))
                 spread = snapshot.get("spread") or 0.0
                 atr_g = (technical.get("indicators", {}) or {}).get("atr") or 0.0
+
+                # Noise-swing guard: measured on the RAW structural stop (OS1↔
+                # entry) BEFORE the buffer. On M5 the Stoch pivots often catch
+                # tiny wiggles so OS1 sits 1-3 pips from entry — that's noise,
+                # not structure; skip it (a tiny TP would come with it anyway).
+                raw_dist = abs(entry_px - sl)
                 min_dist = max(spread * 3.0, atr_g * 0.4)
-                if min_dist > 0 and sl_dist < min_dist:
+                if min_dist > 0 and raw_dist < min_dist:
                     await broadcast(AgentMessage(agent="risk",
-                        text=(f"⛔ ข้าม {symbol} — สวิงเล็กเกิน (SL ห่างแค่ {sl_dist:.5f} < ขั้นต่ำ "
-                              f"{min_dist:.5f}) เป็น noise ไม่ใช่สวิงจริง เลี่ยงโดน spread กวาด"), kind="info"))
-                    decision = {"action": "no_trade", "reason": "สวิงเล็กเกิน (SL แคบกว่า spread×3)",
+                        text=(f"⛔ ข้าม {symbol} — สวิงเล็กเกิน (OS1 ห่างแค่ {raw_dist:.5f} < ขั้นต่ำ "
+                              f"{min_dist:.5f}) เป็น noise ไม่ใช่สวิงจริง"), kind="info"))
+                    decision = {"action": "no_trade", "reason": "สวิงเล็กเกิน (OS1 แคบกว่า spread×3)",
                                 "council": decision.get("council")}
+                else:
+                    # Spread buffer: push the stop a bit BEYOND OS1 so a spread
+                    # spike right at OS1 (JPY/GBP crosses run wide) can't sweep
+                    # the stop before price has truly broken structure. Risk in
+                    # money is unchanged — the lot is sized to the SL distance.
+                    buf = spread * 2.5
+                    sl = sl - buf if decision["action"] == "buy" else sl + buf
+                    decision["sl"] = round(sl, 5)
+                    swing_plan = {**swing_plan, "hard_sl": round(sl, 5)}
+                    decision["risk_pct"] = round(base_risk_pct * swing_plan["initial_fraction"], 2)
 
         if decision["action"] == "no_trade":
             return  # vetoed above (e.g. noise-swing SL too tight) — nothing to send
